@@ -22,6 +22,9 @@ they were written.
   Snapmaker, FlashForge, Prusa, Klipper and OctoPrint.
 - **The README presents the TigerPOD Mini**, the recommended desk reader, with
   its picture and its free MakerWorld file, in place of the original TigerPOD.
+- **The TigerPOD Mini's picture is the new one** (the blue stand holding a red
+  spool), at the size of the picture it replaces, 420 x 622, so the table does not
+  move.
 - **The installer page says where to start and where to go**: a "Before you
   start" box with the TigerSystem picture (printers are added with Tiger Studio
   Manager's desktop app; its web version cannot add them), links to the source on GitHub, the TigerSystem wiki, the
