@@ -12,5 +12,6 @@ reset to this header at each release.
 - The README presents the TigerPOD Mini (picture, what it does, its free MakerWorld file) in place of the original TigerPOD.
 
 ## Fixed
+- The title of an AMS HT no longer runs into the edge of its card: the small units centre it over the dot.
 
 ## Removed

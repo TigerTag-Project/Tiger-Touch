@@ -30,6 +30,12 @@ they were written.
   choose (following the system until one is picked). The picture of the screen
   turns from the start-up screen to the printers when the pointer is on it.
 
+### Fixed
+- **The title of an AMS HT ran into the edge of its card** on a printer's full
+  view (seen on an H2C). The small cards of the external spool and of an AMS HT
+  now centre their title over the dot, in a fixed width, with dots if a word were
+  ever too long; the boxes keep their title where it was.
+
 ## [2.0.0] - 2026-10-16
 
 

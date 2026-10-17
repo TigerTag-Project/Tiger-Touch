@@ -61,6 +61,7 @@ typedef struct
 {
     lv_obj_t *card;
     lv_obj_t *name;
+    int small; /* the title's layout: 1 for a small unit, 0 for a box (how it is built) */
     slot_widgets_t slot[4];
 } unit_widgets_t;
 
@@ -72,6 +73,11 @@ static unit_widgets_t s_unit[PV_MAX_UNITS];
 #define SLOTS_W 240
 #define UNIT_W 224     /* a CFS / AMS card */
 #define UNIT_W_EXT 70  /* the external spool, an AMS HT: one slot; three fit on a row */
+/* The title of a small unit is centred over the dot, in what is left of the card
+ * once its frame and this much room at each side are taken: "AMS HT" is about 58
+ * px wide in 70, and at the box's usual 14 px from the edge it touched the other
+ * side. */
+#define UNIT_TITLE_PAD 3
 #define UNIT_GAP 7     /* between two small cards on a row */
 #define UNIT_ROW 98    /* a row of cards, and the gap under it: four rows fit the card */
 #define UNITS_X (SLOTS_X + 8)
@@ -309,6 +315,7 @@ void ui_dashboard_create(lv_obj_t *parent)
         w->card = mk_card(parent, UNITS_X, UNITS_Y + u * UNIT_ROW, UNIT_W, 94);
         lv_obj_set_style_bg_color(w->card, C_TILE, 0); /* on the units' card: one step lighter */
         w->name = mk_label(w->card, &font_ui_14, C_MUTED, 14, 7, "--");
+        w->small = 0; /* the page is built again on a language change: the title is new, as built */
         for (int i = 0; i < 4; i++)
         {
             const int x = 14 + i * 54;
@@ -584,6 +591,26 @@ void ui_dashboard_update(const printer_view_t *v)
             cy += UNIT_ROW;
         }
         lv_obj_set_hidden(w->card, false);
+        if (w->small != small)
+        {
+            /* Set when the kind of card changes, not every second: a style set
+             * redraws the label. */
+            w->small = small;
+            if (small)
+            {
+                lv_obj_set_x(w->name, UNIT_TITLE_PAD);
+                lv_obj_set_size(w->name, UNIT_W_EXT - 2 * UNIT_TITLE_PAD, lv_font_get_line_height(&font_ui_14));
+                lv_label_set_long_mode(w->name, LV_LABEL_LONG_DOT);
+                lv_obj_set_style_text_align(w->name, LV_TEXT_ALIGN_CENTER, 0);
+            }
+            else
+            {
+                lv_obj_set_x(w->name, 14);
+                lv_obj_set_size(w->name, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+                lv_label_set_long_mode(w->name, LV_LABEL_LONG_WRAP);
+                lv_obj_set_style_text_align(w->name, LV_TEXT_ALIGN_LEFT, 0);
+            }
+        }
         lv_label_set_text(w->name, ext ? tr(S_EXT) : pu->label);
         for (int i = 0; i < 4; i++)
         {
