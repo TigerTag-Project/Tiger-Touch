@@ -61,11 +61,13 @@ The pictograms for the nozzle, the bed and the chamber (`firmware/tools/pictos/`
 are Tiger Studio Manager's own; the clock is Studio's too, and the file and the
 flag are drawn in the same style.
 
-`assets/tiger-touch-device.png`, the README's picture of the screen, is
+The pictures of the screen - `assets/tiger-touch-device.png`,
+`assets/tiger-touch-splash.png`, everything in `assets/devices/` (the animated
+`tiger-touch-views.webp` included) and the installer's `device*.png` - are
 BigTreeTech's line drawing of the Panda Touch from its board component's
 documentation (`docs/images/pandatouch.png`, MIT as stated by that component, see
-above), its lines turned grey and a Tiger Touch screenshot set into its screen.
-The `BIGTREETECH` mark on it is theirs.
+above), its lines turned grey and a Tiger Touch screen set into it. The
+`BIGTREETECH` mark on them is theirs.
 
 The README's other pictures come from the TigerTag project's own Tiger Studio
 Manager:

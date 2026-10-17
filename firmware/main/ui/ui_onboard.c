@@ -184,30 +184,11 @@ bool ui_side_prompt_open(void)
 
 /* ---- Header with a back arrow -------------------------------------------- */
 
-/* TigerScale's header, as on the settings pages: the band is the back button,
- * on PRESSED; a large chevron, the title in white, a hairline under it. */
+/* The shared header (ui_kit_header): the band is the back button, on PRESSED;
+ * a large chevron and the title, on the line every screen's top line uses. */
 static void header(lv_obj_t *scr, const char *title)
 {
-    lv_obj_t *hdr = lv_obj_create(scr);
-    lv_obj_remove_style_all(hdr);
-    lv_obj_set_pos(hdr, 0, 0);
-    lv_obj_set_size(hdr, 800, 72);
-    lv_obj_set_clickable(hdr, true);
-    lv_obj_set_scrollable(hdr, false);
-    lv_obj_add_event_cb(hdr, post_cb, LV_EVENT_PRESSED, (void *)(intptr_t)EV_CANCEL);
-    lv_obj_t *back = lv_label_create(hdr);
-    lv_label_set_text(back, LV_SYMBOL_LEFT);
-    lv_obj_set_style_text_font(back, &lv_font_montserrat_32, 0);
-    lv_obj_set_style_text_color(back, C_TEXT, 0);
-    lv_obj_align(back, LV_ALIGN_LEFT_MID, 24, 0);
-    lv_obj_t *t = ui_kit_txt(hdr, &font_ui_24, C_TEXT, title, 0, 0);
-    lv_obj_align(t, LV_ALIGN_LEFT_MID, 80, 0);
-    lv_obj_t *div = lv_obj_create(hdr);
-    lv_obj_remove_style_all(div);
-    lv_obj_set_size(div, 800, 1);
-    lv_obj_set_pos(div, 0, 71);
-    lv_obj_set_style_bg_color(div, C_LINE, 0);
-    lv_obj_set_style_bg_opa(div, LV_OPA_COVER, 0);
+    ui_kit_header(scr, title, EV_CANCEL);
 }
 
 /* ---- Sign-in page --------------------------------------------------------- */

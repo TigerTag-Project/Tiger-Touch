@@ -16,12 +16,68 @@ they were written.
 
 ## [Unreleased]
 
+### Added
+- **The time on the home screen**: hours and minutes, local time, in the middle
+  of its top line; "--:--" until the clock is set.
+- **Settings > Demo mode**, for a showroom, a fair or screenshots: the screen
+  shows ten made-up printers of every brand, printing - progress that moves,
+  temperatures that wobble, prints that finish and start again, filament colours
+  drawn from Tiger Studio's palette anew at each start - and looks exactly as
+  it does with real printers. Off by default, kept until switched off (the
+  switch restarts the screen). While it is on, none of the account's printers
+  is reached, nothing is sent to any machine, the owner's choices are not
+  overwritten, and the account is told `demo: true` with no printer.
+- **Settings > Battery**, a page of its own as on TigerSpool: a *Built-in
+  battery* switch, on by default since the Panda Touch and the K-Touch ship with
+  one inside, the battery drawn (lit when declared), and why the charge cannot be
+  read: the owner's declaration is
+  written to the account as `battery_present`, as TigerSpool does. The charge
+  and whether it charges stay `null`: this board gives the firmware no way to
+  read them.
+- **A call to join on the installer page**, for people who are not installing
+  today: "You dreamed of it. The TigerSquad built it." and a *Join us now*
+  button to tigersystem.io, in the eleven languages.
+
 ### Changed
+- **Settings shows the account's name, not its e-mail**, as TigerScale V3 does:
+  the `displayName` of `users/{uid}`, read with the country the device already
+  reads, kept across restarts, forgotten when another account signs in. The
+  e-mail shows only when the account has no name.
+- **One header on every screen**: 64 px high, no rule under it, and the back
+  arrow, the title, the clock, the Wi-Fi and account icons and the buttons all
+  centred on the same line (`HEADER_H`, `HEADER_MID`, `ui_kit_on_header()`), on
+  the home screen, the settings and their pages, the sign-in pages and a
+  printer's full view. Nothing moves from one screen to the next.
+- **A print's colour says its state**, the same on the ring, the card and the
+  list bar: blue while it prints, orange paused, green finished, red on a
+  fault. The dot beside the name still says the connection.
+- **Stop asks before it acts**: a touch opens a confirmation ("Stop this
+  print? It cannot be resumed."), and only its red *Stop* sends the command;
+  *Cancel* or a touch outside closes it. It replaces the 1.5 s hold.
+- **The clock is also in the Settings header and in a printer's full view**,
+  centred, as on the home screen.
+- **The README shows the screen at work**: its top picture turns, in BIGTREETECH's
+  45-degree drawing, from the start-up screen to the cards, the list and a
+  printer's full view; the gallery shows printers printing (their progress was
+  filled in by a bench build, which the caption says). The installer's picture
+  turns to the cards printing.
+- **The settings row reads *Account*** instead of *Change account*.
+- **The installer page uses the width of the screen**: on a computer, the
+  pitch and the install steps beside a large picture of the screen, then
+  "Before you start" in two columns and the comparison across the page; on a
+  tablet one wide column with the screen first; on a phone everything stacked.
+  The printer brands are drawn in the text's colour (white on dark, dark on
+  light) instead of grey, there and in the README.
+- **The installer page opens on the name**: "Tiger Touch" in large type at
+  the top, the promise under it, on a computer, a tablet or a phone.
 - **The printer brands are shown above the screen**, in the README and on the
   installer page: one strip with Bambu Lab, Creality, Elegoo, Anycubic,
   Snapmaker, FlashForge, Prusa, Klipper and OctoPrint.
 - **The README presents the TigerPOD Mini**, the recommended desk reader, with
   its picture and its free MakerWorld file, in place of the original TigerPOD.
+- **The TigerPOD Mini's picture is the new one** (the blue stand holding a red
+  spool), at the size of the picture it replaces, 420 x 622, so the table does not
+  move.
 - **The installer page says where to start and where to go**: a "Before you
   start" box with the TigerSystem picture (printers are added with Tiger Studio
   Manager's desktop app; its web version cannot add them), links to the source on GitHub, the TigerSystem wiki, the
@@ -35,6 +91,10 @@ they were written.
   view (seen on an H2C). The small cards of the external spool and of an AMS HT
   now centre their title over the dot, in a fixed width, with dots if a word were
   ever too long; the boxes keep their title where it was.
+- **Demo mode: the estimated end no longer moves.** The time left ran down six
+  times faster than the clock, so the end jumped back every 20 s and crept
+  forward in between; it now runs at the progress's pace and the end stays put.
+  The demo's Ender-3 S1 prints too, instead of sitting idle.
 
 ## [2.0.0] - 2026-10-16
 

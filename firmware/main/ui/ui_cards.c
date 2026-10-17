@@ -274,7 +274,7 @@ static void build_card(card_t *c, lv_obj_t *row, const printer_row_t *r, int ind
     lv_obj_set_style_arc_width(c->arc, 9, LV_PART_MAIN);
     lv_obj_set_style_arc_width(c->arc, 9, LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(c->arc, C_LINE, LV_PART_MAIN);
-    lv_obj_set_style_arc_color(c->arc, C_ACCENT, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(c->arc, C_BLUE, LV_PART_INDICATOR);
     lv_obj_set_style_arc_rounded(c->arc, true, LV_PART_INDICATOR);
     lv_arc_set_value(c->arc, 0); /* a new arc is drawn half full until it has a value */
     c->pct = mk_label(card, &font_ui_24, C_TEXT, 0, 0, RING, "--");
@@ -348,7 +348,7 @@ static void build_row(card_t *c, lv_obj_t *list, const printer_row_t *r, int ind
     lv_obj_set_style_bg_color(c->bar, C_LINE, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(c->bar, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(c->bar, 3, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(c->bar, C_ACCENT, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(c->bar, C_BLUE, LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(c->bar, LV_OPA_COVER, LV_PART_INDICATOR);
     lv_obj_set_style_radius(c->bar, 3, LV_PART_INDICATOR);
     lv_obj_set_clickable(c->bar, false);
@@ -427,18 +427,6 @@ static const char *temp_text(char *buf, size_t n, bool live, float v, bool needs
     return buf;
 }
 
-static lv_color_t progress_color(const printer_view_t *v, bool live, int pct)
-{
-    if (live && v->state == PV_PAUSED)
-    {
-        return C_AMBER;
-    }
-    if (live && v->state == PV_ERROR)
-    {
-        return C_RED;
-    }
-    return pct >= 100 ? C_GREEN : C_ACCENT;
-}
 
 /* A list row: the same reading as a card, with less drawn. */
 static void update_row(card_t *c, const printer_view_t *v, bool live, bool silent)
@@ -458,7 +446,7 @@ static void update_row(card_t *c, const printer_view_t *v, bool live, bool silen
     {
         lv_bar_set_value(c->bar, pct, LV_ANIM_OFF);
     }
-    lv_obj_set_style_bg_color(c->bar, progress_color(v, live, pct), LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(c->bar, ui_progress_color(v, live), LV_PART_INDICATOR);
     if (live)
     {
         snprintf(buf, sizeof buf, "%d %%", pct);
@@ -538,23 +526,10 @@ void ui_cards_update(int index, const printer_view_t *v, printer_chip_t chip)
     ui_job_set(&c->job, jobs, live && v->state == PV_PAUSED);
     ui_job_set_light(&c->job, live && v->can_light, v->light_on);
 
-    /* The ring: the progress, in amber while paused, red on a fault, green once full. */
+    /* The ring: the progress, coloured by the print's state (ui_progress_color). */
     const int pct = live ? (v->progress < 0 ? 0 : (v->progress > 100 ? 100 : v->progress)) : 0;
     lv_arc_set_value(c->arc, pct);
-    lv_color_t ring = C_ACCENT;
-    if (live && v->state == PV_PAUSED)
-    {
-        ring = C_AMBER;
-    }
-    else if (live && v->state == PV_ERROR)
-    {
-        ring = C_RED;
-    }
-    else if (pct >= 100)
-    {
-        ring = C_GREEN;
-    }
-    lv_obj_set_style_arc_color(c->arc, ring, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(c->arc, ui_progress_color(v, live), LV_PART_INDICATOR);
     if (live)
     {
         snprintf(buf, sizeof buf, "%d %%", pct);

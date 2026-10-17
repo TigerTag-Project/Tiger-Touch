@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
         "main.c"
         "settings.c"
+        "demo_mode.c"
         "i18n.c"
         "net/wifi_mgr.c"
         "net/tz.c"

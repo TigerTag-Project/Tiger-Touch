@@ -16,6 +16,10 @@ static const char *TAG = "screen";
 static int s_brightness = DEFAULT_BRIGHTNESS;
 static int s_sleep_s = 0;
 static int s_rotation = 0;
+/* Whether the owner says a battery is fitted. The Panda Touch and the K-Touch
+ * ship with one inside, so yes unless switched off; the board cannot detect it
+ * (docs/HARDWARE.md), the way TigerSpool asks rather than guesses. */
+static volatile int s_battery = 1;
 
 typedef enum
 {
@@ -47,7 +51,19 @@ void screen_init(void)
     }
     s_sleep_s = get_int("sleep", 0);
     s_rotation = get_int("rot", 0) == 180 ? 180 : 0;
+    s_battery = get_int("battery", 1) ? 1 : 0;
     pt_display_set_rotation180(s_rotation == 180);
+}
+
+bool screen_battery(void)
+{
+    return s_battery != 0;
+}
+
+void screen_set_battery(bool fitted)
+{
+    s_battery = fitted ? 1 : 0;
+    put_int("battery", s_battery);
 }
 
 int screen_brightness(void)

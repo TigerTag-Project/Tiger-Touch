@@ -24,8 +24,8 @@ yet run on a real printer. Not made or endorsed by BIGTREETECH.
 Setup like TigerScale V3 (language, Wi-Fi, account with Google sign-in by QR).
 Live cards or a light list per printer (state, progress, file, time left, temperatures), a full
 view with every filament unit (CFS, AMS, external spool) and up to four tool
-heads, and four commands only, each on a touch: pause, resume, stop (a 1.5 s
-hold) and the printer's light. Several printers are connected at once within a
+heads, and four commands only, each on a touch: pause, resume, stop (after a
+confirmation) and the printer's light. Several printers are connected at once within a
 budget of internal RAM measured in load slots. Eleven languages.
 
 If you are an agent about to change something here, read `CLAUDE.md` and

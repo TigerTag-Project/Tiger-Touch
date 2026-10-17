@@ -1,11 +1,10 @@
 #include "ui_job.h"
 
+#include "i18n.h"
 #include "pictos.h"
 #include "ui_setup.h"
 #include "ui_theme.h"
 
-#define HOLD_MS 1500
-#define DARK_RED lv_color_hex(0x7a2f2f)
 #define LIGHT_ON lv_color_hex(0xf5b84a)
 
 static void on_pause(lv_event_t *e)
@@ -20,50 +19,100 @@ static void on_light(lv_event_t *e)
     ui_post(EV_PRINTER_JOB, b->index, b->light_on > 0 ? "light_off" : "light_on", NULL);
 }
 
-static void fill_cb(void *obj, int32_t w)
+/* ---- Stop: a touch, then a confirmation -----------------------------------
+ *
+ * Stopping destroys a print that may be hours in, so a touch only asks: a
+ * modal over the screen says what will happen, and only its red button sends
+ * the command. A touch outside it, or Cancel, closes it. It belongs to the
+ * screen on show and goes with it; it keeps the row it was opened for, not a
+ * pointer into the card, which can be rebuilt while it is open. */
+
+static lv_obj_t *s_modal;
+static int s_modal_index;
+
+static void close_modal(void)
 {
-    lv_obj_set_width((lv_obj_t *)obj, w);
+    if (s_modal)
+    {
+        lv_obj_delete(s_modal);
+        s_modal = NULL;
+    }
 }
 
-static void hold_done(lv_anim_t *a)
+static void on_modal_gone(lv_event_t *e)
 {
-    job_buttons_t *b = (job_buttons_t *)lv_anim_get_user_data(a);
-    lv_obj_set_width(b->fill, 0);
-    ui_post(EV_PRINTER_JOB, b->index, "stop", NULL);
+    (void)e;
+    s_modal = NULL; /* deleted with its screen */
 }
 
-static void cancel_hold(job_buttons_t *b)
+static void on_modal_cancel(lv_event_t *e)
 {
-    lv_anim_delete(b->fill, fill_cb);
-    lv_obj_set_width(b->fill, 0);
+    /* The backdrop takes the touches outside the panel; the panel's own do not reach it. */
+    if (lv_event_get_target_obj(e) == lv_event_get_current_target_obj(e))
+    {
+        close_modal();
+    }
+}
+
+static void on_modal_stop(lv_event_t *e)
+{
+    (void)e;
+    const int index = s_modal_index;
+    close_modal();
+    ui_post(EV_PRINTER_JOB, index, "stop", NULL);
+}
+
+static void open_stop_modal(int index)
+{
+    close_modal();
+    s_modal_index = index;
+    lv_obj_t *bg = s_modal = lv_obj_create(lv_screen_active());
+    lv_obj_remove_style_all(bg);
+    lv_obj_set_size(bg, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_bg_color(bg, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_opa(bg, LV_OPA_60, 0);
+    lv_obj_set_clickable(bg, true);
+    lv_obj_add_event_cb(bg, on_modal_cancel, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(bg, on_modal_gone, LV_EVENT_DELETE, NULL);
+
+    const int w = 520, h = 248;
+    lv_obj_t *panel = lv_obj_create(bg);
+    lv_obj_set_size(panel, w, h);
+    lv_obj_center(panel);
+    lv_obj_set_style_bg_color(panel, C_CARD, 0);
+    lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(panel, C_LINE, 0);
+    lv_obj_set_style_border_width(panel, 1, 0);
+    lv_obj_set_style_radius(panel, 18, 0);
+    lv_obj_set_style_pad_all(panel, 0, 0);
+    lv_obj_set_scrollable(panel, false);
+    lv_obj_set_clickable(panel, true); /* a touch on it is not a touch outside */
+
+    lv_obj_t *icon = lv_label_create(panel);
+    lv_label_set_text(icon, LV_SYMBOL_STOP);
+    lv_obj_set_style_text_font(icon, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_color(icon, C_RED, 0);
+    lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 22);
+    lv_obj_t *q = ui_kit_txt(panel, &font_ui_24, C_TEXT, tr(S_STOP_Q), 0, 0);
+    lv_obj_align(q, LV_ALIGN_TOP_MID, 0, 70);
+    lv_obj_t *warn = ui_kit_txt(panel, &font_ui_16, C_MUTED, tr(S_STOP_WARN), 0, 0);
+    lv_obj_set_width(warn, w - 48);
+    lv_obj_set_style_text_align(warn, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_long_mode(warn, LV_LABEL_LONG_WRAP);
+    lv_obj_align(warn, LV_ALIGN_TOP_MID, 0, 110);
+
+    const int bw = (w - 24 * 2 - 16) / 2, bh = 56, by = h - bh - 22;
+    lv_obj_t *cancel = ui_kit_button(panel, tr(S_CANCEL), 24, by, bw, bh, false, NULL, NULL);
+    lv_obj_add_event_cb(cancel, on_modal_cancel, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *stop = ui_kit_button(panel, tr(S_STOP), 24 + bw + 16, by, bw, bh, true, NULL, NULL);
+    lv_obj_set_style_bg_color(stop, C_RED, 0);
+    lv_obj_add_event_cb(stop, on_modal_stop, LV_EVENT_CLICKED, NULL);
 }
 
 static void on_stop(lv_event_t *e)
 {
-    job_buttons_t *b = (job_buttons_t *)lv_event_get_user_data(e);
-    switch (lv_event_get_code(e))
-    {
-    case LV_EVENT_PRESSED:
-    {
-        lv_anim_t a;
-        lv_anim_init(&a);
-        lv_anim_set_var(&a, b->fill);
-        lv_anim_set_exec_cb(&a, fill_cb);
-        lv_anim_set_values(&a, 0, b->stop_w);
-        lv_anim_set_duration(&a, HOLD_MS);
-        lv_anim_set_path_cb(&a, lv_anim_path_linear);
-        lv_anim_set_completed_cb(&a, hold_done);
-        lv_anim_set_user_data(&a, b);
-        lv_anim_start(&a);
-        break;
-    }
-    case LV_EVENT_RELEASED:
-    case LV_EVENT_PRESS_LOST:
-        cancel_hold(b);
-        break;
-    default:
-        break;
-    }
+    const job_buttons_t *b = (const job_buttons_t *)lv_event_get_user_data(e);
+    open_stop_modal(b->index);
 }
 
 static lv_obj_t *mk_button(lv_obj_t *parent, int x, int y, int w, int h)
@@ -109,7 +158,6 @@ void ui_job_build(job_buttons_t *b, lv_obj_t *parent, int px, int py, int sx, in
                   int lw, int lh, int index)
 {
     b->index = index;
-    b->stop_w = w;
     b->shown = false;
     b->paused = false;
     b->light_can = -1;
@@ -134,18 +182,9 @@ void ui_job_build(job_buttons_t *b, lv_obj_t *parent, int px, int py, int sx, in
     b->stop = mk_button(parent, sx, sy, w, h);
     lv_obj_set_style_border_width(b->stop, 2, 0);
     lv_obj_set_style_border_color(b->stop, C_RED, 0);
-    b->fill = lv_obj_create(b->stop);
-    lv_obj_set_pos(b->fill, 0, 0);
-    lv_obj_set_size(b->fill, 0, h - 4); /* inside the 2 px frame */
-    lv_obj_set_style_bg_color(b->fill, DARK_RED, 0);
-    lv_obj_set_style_bg_opa(b->fill, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(b->fill, 0, 0);
-    lv_obj_set_style_radius(b->fill, 8, 0);
-    lv_obj_set_style_pad_all(b->fill, 0, 0);
-    lv_obj_set_scrollable(b->fill, false);
-    lv_obj_set_clickable(b->fill, false);
+    lv_obj_set_style_bg_color(b->stop, C_LINE, LV_STATE_PRESSED);
     b->stop_icon = mk_icon(b->stop, LV_SYMBOL_STOP, C_RED, h);
-    lv_obj_add_event_cb(b->stop, on_stop, LV_EVENT_ALL, b);
+    lv_obj_add_event_cb(b->stop, on_stop, LV_EVENT_CLICKED, b);
 
     /* Always drawn, like the light; inert until a job runs on a connection that
      * takes commands (see ui_job_set). */
@@ -180,10 +219,6 @@ void ui_job_set(job_buttons_t *b, bool active, bool paused)
     if (active != b->shown)
     {
         set_active(b, active);
-        if (!active)
-        {
-            cancel_hold(b); /* a hold must not complete on a button that went inert */
-        }
     }
     if (paused != b->paused)
     {

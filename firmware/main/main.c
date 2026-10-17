@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "cloud.h"
+#include "demo_mode.h"
 #include "esp_attr.h"
 #include "i18n.h"
 #include "screen.h"
@@ -737,6 +738,53 @@ static void run_screen_page(void)
     }
 }
 
+static void run_battery_page(void)
+{
+    flush_events();
+    PT_LVGL_SCOPE_LOCK()
+    {
+        ui_show_battery_page(screen_battery());
+    }
+    for (;;)
+    {
+        app_event_t e = wait_event();
+        if (e.type == EV_SET_BATTERY)
+        {
+            screen_set_battery(e.index != 0); /* the next heartbeat carries it */
+        }
+        else if (e.type == EV_BACK)
+        {
+            return;
+        }
+    }
+}
+
+static void run_demo_page(void)
+{
+    flush_events();
+    PT_LVGL_SCOPE_LOCK()
+    {
+        ui_show_demo_page(demo_mode_on());
+    }
+    for (;;)
+    {
+        app_event_t e = wait_event();
+        if (e.type == EV_SET_DEMO && (e.index != 0) != demo_mode_on())
+        {
+            /* Everything that reads the printers was built for one or the other:
+             * a restart starts it all again the new way. */
+            demo_mode_set(e.index != 0);
+            busy(tr(S_RESTART), NULL);
+            vTaskDelay(pdMS_TO_TICKS(400)); /* let the picture reach the panel */
+            esp_restart();
+        }
+        else if (e.type == EV_BACK)
+        {
+            return;
+        }
+    }
+}
+
 static void run_language_page(void)
 {
     for (;;)
@@ -969,8 +1017,11 @@ static void run_settings(void)
         const bool has_offer = ota_cached_offer(&offered);
         wifi_link_info_t link = {0};
         const bool online = wifi_mgr_connected() && wifi_mgr_info(&link);
+        /* The name the owner gave the account, as on TigerScale; the e-mail
+         * only when the account has none. */
         char email[96];
-        strlcpy(email, cloud_email(), sizeof email);
+        const char *dn = cloud_display_name();
+        strlcpy(email, dn[0] ? dn : cloud_email(), sizeof email);
         settings_menu_t m = {
             .printers_total = s_printer_count,
             .wifi_connected = online,
@@ -978,6 +1029,8 @@ static void run_settings(void)
             .account_state = !cloud_has_session() ? 0 : cloud_link() == CLOUD_LINK_OK ? 2 : 1,
             .account_email = email,
             .update_offered = has_offer ? offered.version : NULL,
+            .battery = screen_battery(),
+            .demo = demo_mode_on(),
         };
         for (int i = 0; i < s_printer_count; i++)
         {
@@ -998,6 +1051,12 @@ static void run_settings(void)
             break;
         case EV_OPEN_SCREEN:
             run_screen_page();
+            break;
+        case EV_OPEN_BATTERY:
+            run_battery_page();
+            break;
+        case EV_OPEN_DEMO:
+            run_demo_page();
             break;
         case EV_OPEN_LANGUAGE:
             run_language_page();
@@ -1174,7 +1233,10 @@ static bool run_printer_menu(bool boot)
                 const int pi = row_printer[e.index];
                 const bool changed = !cur || strcmp(cur->id, s_printers[pi].id) != 0;
                 strlcpy(s_selected_id, s_printers[pi].id, sizeof s_selected_id);
-                settings_set("sel_printer", s_selected_id);
+                if (!demo_mode_on())
+                {
+                    settings_set("sel_printer", s_selected_id);
+                }
                 if (changed)
                 {
                     /* After the id: the feed reads the generation first. */
@@ -1225,6 +1287,10 @@ typedef struct
 
 static void save_printer_cache(void)
 {
+    if (demo_mode_on())
+    {
+        return;
+    }
     printer_cache_t *c = heap_caps_calloc(1, sizeof *c, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!c)
     {
@@ -1325,9 +1391,15 @@ static void presence_task(void *arg)
             next_us = 0;
         }
         collect_presence(&p);
+        p.demo = demo_mode_on();
+        if (p.demo)
+        {
+            p.n = 0; /* the account lists no made-up printer */
+        }
         p.screen_off = screen_asleep();
+        p.battery = screen_battery();
         /* What a person would see change: the printers on, which answer, the screen. */
-        uint32_t sig = (uint32_t)p.n * 2654435761u ^ (p.screen_off ? 1u : 0u);
+        uint32_t sig = (uint32_t)p.n * 2654435761u ^ (p.screen_off ? 1u : 0u) ^ (p.battery ? 2u : 0u);
         for (int k = 0; k < p.n; k++)
         {
             sig = sig * 31u + (p.online[k] ? 2u : 1u) + (uint32_t)p.ids[k][0];
@@ -1364,6 +1436,11 @@ static void presence_task(void *arg)
  * answered (the list may still miss a brand that did not). */
 static bool fetch_printers(bool show_busy)
 {
+    if (demo_mode_on())
+    {
+        s_printers_unread = false; /* the demo's printers stay; the account's are not read */
+        return true;
+    }
     if (show_busy)
     {
         busy(tr(S_BUSY_PRINTERS), cloud_email());
@@ -1666,6 +1743,10 @@ static remind_t s_remind;
 
 static remind_t what_to_remind(void)
 {
+    if (demo_mode_on())
+    {
+        return REMIND_NONE; /* a showroom screen asks nothing of anybody */
+    }
     if (!wifi_mgr_connected())
     {
         /* A saved network that is down is not something to set up again. */
@@ -1735,6 +1816,14 @@ static void app_task(void *arg)
     char view[8] = "";
     settings_get("home_view", view, sizeof view);
     ui_cards_set_list(strcmp(view, "list") == 0);
+    if (demo_mode_on())
+    {
+        /* The made-up printers, reached by nothing: no network to wait for. */
+        s_printer_count = demo_mode_printers(s_printers, CLOUD_MAX_PRINTERS);
+        links_reload();
+        links_set_network_ready(true);
+        ESP_LOGW(TAG, "demo mode: %d made-up printers, nothing real is reached", s_printer_count);
+    }
     if (xTaskCreatePinnedToCoreWithCaps(presence_task, "presence", 12 * 1024, NULL, 2, NULL, 0,
                                         MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS)
     {
@@ -1773,7 +1862,7 @@ static void app_task(void *arg)
     const bool quick = !first && wifi_saved();
     if (quick)
     {
-        if (cloud_has_session())
+        if (cloud_has_session() && !demo_mode_on())
         {
             load_printer_cache();
             s_printers_unread = true; /* until the account has answered */

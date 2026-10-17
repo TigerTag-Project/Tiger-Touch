@@ -1,4 +1,5 @@
 #include "links.h"
+#include "demo_mode.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -178,6 +179,10 @@ static bool csv_has(const char *csv, const char *id)
 
 static void persist(void)
 {
+    if (demo_mode_on())
+    {
+        return; /* the owner's real choice of printers is kept as it was */
+    }
     static char csv[CSV_MAX];
     size_t at = 0;
     csv[at++] = ',';
@@ -244,8 +249,10 @@ void links_reload(void)
         }
         /* Never chosen: every printer in the account's order, until the budget
          * or the link count is full. That first answer then becomes the user's. */
-        const bool want = chosen ? csv_has(csv, s_p[i].id) : true;
-        if (want && used_slots_if(i) <= BUDGET && on_count_if(i) <= MAX_LINKS)
+        const bool want = chosen && !demo_mode_on() ? csv_has(csv, s_p[i].id) : true;
+        /* A demo printer costs no connection: only the link count holds it. */
+        const bool fits = demo_mode_on() || used_slots_if(i) <= BUDGET;
+        if (want && fits && on_count_if(i) <= MAX_LINKS)
         {
             s_on[i] = true;
         }

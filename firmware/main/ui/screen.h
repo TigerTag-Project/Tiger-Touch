@@ -14,6 +14,11 @@ int screen_rotation(void);   /* 0 or 180 */
 
 void screen_set_brightness(int percent);
 void screen_set_sleep(int seconds);
+/* Whether a battery is fitted, as the owner declared it (yes by default: the
+ * screen ships with one inside). Read from any task. */
+bool screen_battery(void);
+void screen_set_battery(bool fitted);
+
 /* Whether the panel sleeps (backlight off), from any task. */
 bool screen_asleep(void);
 /* Needs the LVGL lock: the screen on show is redrawn. */

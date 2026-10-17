@@ -106,7 +106,7 @@ tried again every 30 seconds until it works.
 
 *Settings > Factory reset* erases everything stored (Wi-Fi, account, language,
 choices) after a confirmation, and the next start is the first one again.
-*Settings > Wi-Fi > Change network* and *Settings > Change account* run the
+*Settings > Wi-Fi > Change network* and *Settings > Account* run the
 matching step on its own.
 
 ## Related

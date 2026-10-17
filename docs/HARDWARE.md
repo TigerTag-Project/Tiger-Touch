@@ -69,7 +69,9 @@ Reading the battery would take an addition: a fuel-gauge module (a MAX17048,
 for instance) on the I2C connector at the back, wired to the battery inside.
 
 So the device cannot tell whether it runs on the dock or on the battery, nor how
-much charge is left. The only sign BIGTREETECH documents is a flickering screen
+much charge is left. What it can say is whether a battery is fitted, because the
+owner tells it: *Settings > Battery*, yes by default (both
+screens ship with one), written to the account as `battery_present`. The only sign BIGTREETECH documents is a flickering screen
 when the battery is nearly empty.
 
 ## Drawing speed

@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "k2_client.h"
+#include "demo_mode.h"
 #include "printer_driver.h"
 
 static const printer_driver_t *const REGISTRY[] = {
@@ -18,6 +19,10 @@ static const printer_driver_t *const REGISTRY[] = {
 
 const printer_driver_t *drivers_for(const account_printer_t *p)
 {
+    if (demo_mode_on())
+    {
+        return &DRIVER_DEMO; /* nothing real is reached while the demo runs */
+    }
     for (size_t i = 0; i < sizeof REGISTRY / sizeof REGISTRY[0]; i++)
     {
         if (strcmp(REGISTRY[i]->brand, p->brand) == 0 && REGISTRY[i]->support(p) != DRV_NONE)

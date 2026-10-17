@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "boot_splash.h"
 #include "brand_logos.h"
@@ -188,7 +189,7 @@ void ui_show_wifi_list(const wifi_net_t *nets, int n, const char *banner, bool a
         lv_obj_set_hidden(lv_obj_get_child(band, 0), true);
     }
     lv_obj_t *rescan = lv_button_create(band);
-    lv_obj_set_size(rescan, 72, 64);
+    lv_obj_set_size(rescan, 72, HEADER_H);
     lv_obj_align(rescan, LV_ALIGN_RIGHT_MID, -8, 0);
     lv_obj_set_style_bg_opa(rescan, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(rescan, 0, 0);
@@ -633,7 +634,8 @@ static void view_button(lv_obj_t *scr)
 {
     lv_obj_t *b = lv_button_create(scr);
     lv_obj_set_size(b, 56, 60);
-    lv_obj_align(b, LV_ALIGN_TOP_RIGHT, -152, 2);
+    lv_obj_align(b, LV_ALIGN_TOP_RIGHT, -152, 0);
+    ui_kit_on_header(b);
     lv_obj_set_style_bg_opa(b, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(b, 0, 0);
     lv_obj_set_style_shadow_width(b, 0, 0);
@@ -661,6 +663,57 @@ static void view_button(lv_obj_t *scr)
     }
 }
 
+/* The clock in the middle of the home's top line: hours and minutes, local
+ * time (the time zone follows the country). "--:--" until the clock is set.
+ * Written only when the minute changes: a label set to the same text is still
+ * redrawn. The timer goes with the label, never after it. */
+static void clock_text(char *out, size_t n)
+{
+    const time_t now = time(NULL);
+    if (now < 1700000000)
+    {
+        snprintf(out, n, "--:--");
+        return;
+    }
+    struct tm lt;
+    localtime_r(&now, &lt);
+    strftime(out, n, "%H:%M", &lt);
+}
+
+static void clock_tick(lv_timer_t *t)
+{
+    lv_obj_t *l = (lv_obj_t *)lv_timer_get_user_data(t);
+    char buf[8];
+    clock_text(buf, sizeof buf);
+    if (strcmp(lv_label_get_text(l), buf) != 0)
+    {
+        lv_label_set_text(l, buf);
+    }
+}
+
+static void clock_gone(lv_event_t *e)
+{
+    lv_timer_delete((lv_timer_t *)lv_event_get_user_data(e));
+}
+
+void ui_kit_on_header(lv_obj_t *o)
+{
+    lv_obj_update_layout(o);
+    lv_obj_set_y(o, HEADER_MID - lv_obj_get_height(o) / 2);
+}
+
+lv_obj_t *ui_kit_clock(lv_obj_t *parent)
+{
+    char buf[8];
+    clock_text(buf, sizeof buf);
+    lv_obj_t *l = txt(parent, &font_ui_24, C_TEXT, buf, 0, 0);
+    lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 0);
+    ui_kit_on_header(l);
+    lv_timer_t *t = lv_timer_create(clock_tick, 1000, l);
+    lv_obj_add_event_cb(l, clock_gone, LV_EVENT_DELETE, t);
+    return l;
+}
+
 /* The printers page: the header (settings, Wi-Fi, account) and one live card per
  * switched-on printer, which ui_cards.c draws and keeps current. */
 void ui_show_printers(const printer_row_t *rows, int n)
@@ -669,11 +722,14 @@ void ui_show_printers(const printer_row_t *rows, int n)
     /* The home's top line, in TigerScale's grammar: the title in white, then the
      * Wi-Fi wave and the account, then the gear as a bare icon - no boxes. */
     lv_obj_t *t = txt(scr, &font_ui_24, C_TEXT, tr(S_PRINTERS), 24, 0);
-    lv_obj_align(t, LV_ALIGN_TOP_LEFT, 24, 18);
+    lv_obj_align(t, LV_ALIGN_TOP_LEFT, 24, 0);
+    ui_kit_on_header(t);
+    ui_kit_clock(scr);
 
     lv_obj_t *gear = lv_button_create(scr);
     lv_obj_set_size(gear, 72, 60);
-    lv_obj_align(gear, LV_ALIGN_TOP_RIGHT, -4, 2);
+    lv_obj_align(gear, LV_ALIGN_TOP_RIGHT, -4, 0);
+    ui_kit_on_header(gear);
     lv_obj_set_style_bg_opa(gear, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(gear, 0, 0);
     lv_obj_set_style_shadow_width(gear, 0, 0);
@@ -685,10 +741,12 @@ void ui_show_printers(const printer_row_t *rows, int n)
     lv_obj_add_event_cb(gear, on_list_settings, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t *wave = ui_wifi_wave(scr);
-    lv_obj_align(wave, LV_ALIGN_TOP_RIGHT, -120, 18);
+    lv_obj_align(wave, LV_ALIGN_TOP_RIGHT, -120, 0);
+    ui_kit_on_header(wave);
     ui_wifi_set_transient(wave);
     lv_obj_t *acct = ui_account_icon(scr);
-    lv_obj_align(acct, LV_ALIGN_TOP_RIGHT, -84, 18);
+    lv_obj_align(acct, LV_ALIGN_TOP_RIGHT, -84, 0);
+    ui_kit_on_header(acct);
     ui_account_set_transient(acct);
     if (n > 0)
     {

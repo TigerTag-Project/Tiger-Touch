@@ -51,7 +51,9 @@ scripts/             verify.sh, the guards, build and flash, release and site he
 
 - ESP-IDF native, not PlatformIO: the project is already an IDF project, and the
   wrapper is where the toolchain conflicts came from.
-- No bench console, demo or capture code in the tree, ever.
+- No bench console, demo or capture code in the tree, ever - except the owner's
+  Demo mode (`demo_mode.c`): made-up printers only, nothing reached, nothing sent,
+  off by default (see CLAUDE.md).
 - Private data never enters the repository; there is no "temporarily".
 - A driver that has not run against a real machine says so, in
   `docs/PRINTER-COMPATIBILITY.md` and in its header.

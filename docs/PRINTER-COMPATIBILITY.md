@@ -55,7 +55,7 @@ are shown).
 
 Drawn all the time on every card and on the full view; active only while a job
 runs and only on a connection that takes commands, inert (dimmed, no touch) the
-rest of the time. Stop is a hold of 1.5 s. The frames are the ones
+rest of the time. Stop asks for a confirmation before anything is sent. The frames are the ones
 Tiger Studio sends; none of them has been run from this firmware yet.
 
 | Driver | Command | Status |

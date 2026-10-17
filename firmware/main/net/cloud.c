@@ -29,6 +29,7 @@ static char s_id_token[1792];
 static char s_refresh[768];
 static char s_uid[48];
 static char s_email[96];
+static char s_name[64]; /* the account's displayName, as TigerScale shows it */
 static int64_t s_token_at_us;
 static volatile bool s_link_ok;   /* the last exchange with Firebase worked */
 static int64_t s_last_try_us;     /* last keep-alive attempt */
@@ -186,6 +187,14 @@ static void copy_str(char *dst, size_t n, const cJSON *obj, const char *key)
 
 static void save_session(void)
 {
+    /* Another account: its name is not the last one's; read again with the country. */
+    char was[48] = "";
+    settings_get("acct_uid", was, sizeof was);
+    if (strcmp(was, s_uid) != 0)
+    {
+        s_name[0] = '\0';
+        settings_erase("acct_name");
+    }
     settings_set("acct_refresh", s_refresh);
     settings_set("acct_uid", s_uid);
     settings_set("acct_email", s_email);
@@ -232,12 +241,22 @@ const char *cloud_email(void)
     return s_email;
 }
 
+const char *cloud_display_name(void)
+{
+    if (!s_name[0])
+    {
+        settings_get("acct_name", s_name, sizeof s_name);
+    }
+    return s_name;
+}
+
 void cloud_sign_out(void)
 {
     memset(s_id_token, 0, sizeof s_id_token);
     memset(s_refresh, 0, sizeof s_refresh);
-    s_uid[0] = s_email[0] = '\0';
+    s_uid[0] = s_email[0] = s_name[0] = '\0';
     s_link_ok = false;
+    settings_erase("acct_name");
     settings_erase("acct_refresh");
     settings_erase("acct_uid");
     settings_erase("acct_email");
@@ -945,7 +964,7 @@ cloud_err_t cloud_account_country(char *squad, size_t squad_size, char *vat, siz
     snprintf(url, sizeof url,
              "https://firestore.googleapis.com/v1/projects/" PROJECT
              "/databases/(default)/documents/users/%s"
-             "?mask.fieldPaths=squadCountry&mask.fieldPaths=vatCountry",
+             "?mask.fieldPaths=squadCountry&mask.fieldPaths=vatCountry&mask.fieldPaths=displayName",
              s_uid);
     rx_t rx = {0};
     int st = http_do(url, HTTP_METHOD_GET, NULL, s_id_token, &rx);
@@ -968,6 +987,14 @@ cloud_err_t cloud_account_country(char *squad, size_t squad_size, char *vat, siz
     const cJSON *f = cJSON_GetObjectItem(root, "fields");
     const char *s = f ? fs_str(f, "squadCountry") : NULL;
     const char *v = f ? fs_str(f, "vatCountry") : NULL;
+    /* The same document holds the name the owner gave the account (Studio,
+     * the mobile app): kept so that the settings show it even offline. */
+    const char *dn = f ? fs_str(f, "displayName") : NULL;
+    if (dn && dn[0] && strcmp(dn, cloud_display_name()) != 0)
+    {
+        strlcpy(s_name, dn, sizeof s_name);
+        settings_set("acct_name", s_name);
+    }
     if (s)
     {
         strlcpy(squad, s, squad_size);
@@ -1368,10 +1395,17 @@ cloud_err_t cloud_heartbeat(const cloud_presence_t *p)
     }
     fs_put_str(f, mask, "ip_address", p->ip);
     fs_put_str(f, mask, "power_state", p->screen_off ? "screen_off" : "active");
-    /* The board gives the firmware no way to read its battery or its power
-     * source (docs/HARDWARE.md): not known, so null. */
+    /* Whether a battery is fitted is what the owner declared, as on TigerSpool.
+     * Its charge, whether it charges and the power source are not known: the
+     * board gives the firmware no way to read them (docs/HARDWARE.md), so null,
+     * never a guess. */
+    cJSON *bp = cJSON_AddObjectToObject(f, "battery_present");
+    cJSON_AddBoolToObject(bp, "booleanValue", p->battery);
+    cJSON_AddItemToArray(mask, cJSON_CreateString("battery_present"));
+    cJSON *dm = cJSON_AddObjectToObject(f, "demo");
+    cJSON_AddBoolToObject(dm, "booleanValue", p->demo);
+    cJSON_AddItemToArray(mask, cJSON_CreateString("demo"));
     fs_put_null(f, mask, "power_source");
-    fs_put_null(f, mask, "battery_present");
     fs_put_null(f, mask, "battery_percent");
     fs_put_null(f, mask, "is_charging");
     fs_put_int(f, mask, "printers_active", p->n);

@@ -9,9 +9,10 @@
  * state; both are built here so that they behave the same.
  *
  *  - pause / resume is one touch, since the button next to it undoes it;
- *  - stop is a HOLD of 1.5 s, with a bar that fills while it is held: stopping
- *    destroys a print that may be hours in, and a touch that lands on the wrong
- *    card must not be enough. Letting go, or sliding off, cancels it.
+ *  - stop is a touch that only ASKS: a modal says the print ends and cannot be
+ *    resumed, and only its red Stop button sends the command. Stopping destroys
+ *    a print that may be hours in, and a touch that lands on the wrong card must
+ *    not be enough. Cancel, or a touch outside the modal, closes it.
  *
  * They post EV_PRINTER_JOB with `index` and "pause", "resume" or "stop"; the
  * application task sends the command and the printer's own report changes the
@@ -25,10 +26,8 @@ typedef struct
     lv_obj_t *pause;
     lv_obj_t *pause_icon;
     lv_obj_t *stop;
-    lv_obj_t *fill; /* the hold, filling the stop button */
     lv_obj_t *stop_icon;
     int index;      /* the card's row, 0 on the full view */
-    int stop_w;
     bool shown;
     bool paused;
     lv_obj_t *light;      /* the printer's light: always drawn, never hidden */

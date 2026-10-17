@@ -25,11 +25,15 @@
 </p>
 
 <p align="center">
-  <img src="assets/brands/brands.svg" alt="Bambu Lab, Creality, Elegoo, Anycubic, Snapmaker, FlashForge, Prusa, Klipper and OctoPrint" width="760">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brands/brands-white.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/brands/brands-dark.svg">
+    <img src="assets/brands/brands-dark.svg" alt="Bambu Lab, Creality, Elegoo, Anycubic, Snapmaker, FlashForge, Prusa, Klipper and OctoPrint" width="760">
+  </picture>
 </p>
 
 <p align="center">
-  <img src="assets/tiger-touch-device.png" alt="A BIGTREETECH Panda Touch running Tiger Touch: two live printer cards, a FlashForge AD5X and a Bambu Lab X1C, with progress ring, light, pause and stop buttons, and the nozzle, bed and chamber temperatures" width="440">
+  <img src="assets/devices/tiger-touch-views.webp" alt="A BIGTREETECH Panda Touch running Tiger Touch, in turn: its start-up screen, the printers as live cards, the printers as a list, and one printer's full view with its four tool heads" width="440">
 </p>
 
 <p align="center">
@@ -85,7 +89,7 @@ browser, and two minutes later it shows your printers.
 | ☁️ **Cloud and LAN** | Bambu Lab through the **Bambu cloud** or in LAN mode; Anycubic through the **Anycubic cloud**; the others on your local network. |
 | 🔌 **Plug and play** | Printers come from your TigerTag account, with their addresses and access codes. Nothing to type on the screen but your Wi-Fi. |
 | 📊 **Live, all of them** | State, progress, file, time left and end time, nozzles, bed, chamber, filament units (AMS, CFS, Station, ACE, MMU / AFC lanes), up to ten printers followed at once. |
-| ✋ **Safe controls** | Pause, resume, stop (a 1.5 s hold, so a stray finger never ends a print) and the printer's light. Nothing else is ever sent: no heating, no moving. |
+| ✋ **Safe controls** | Pause, resume, stop (it asks for a confirmation first, so a stray finger never ends a print) and the printer's light. Nothing else is ever sent: no heating, no moving. |
 | 🔄 **Updates itself** | New versions arrive over Wi-Fi, verified before install, rolled back by themselves if they fail to start. |
 | 🌍 **Eleven languages** | English, French, German, Spanish, Italian, Chinese, Portuguese (Brazil and Portugal), Polish, Russian, Dutch. |
 | 💸 **Free and open source** | MIT licensed. No subscription, no account fee, no cloud of ours between you and your printers. |
@@ -94,22 +98,25 @@ browser, and two minutes later it shows your printers.
 
 <table>
   <tr>
-    <td width="50%"><img src="assets/screens/home-cards.png" alt="Home screen in card view: one live card per printer, sliding sideways"></td>
-    <td width="50%"><img src="assets/screens/home-list.png" alt="Home screen in list view: one row per printer with state, progress, temperatures, light, pause and stop"></td>
+    <td width="50%"><img src="assets/screens/home-cards.png" alt="Home screen in card view: two printers printing, each with its progress ring, file, time left, end time and temperatures"></td>
+    <td width="50%"><img src="assets/screens/home-list.png" alt="Home screen in list view: four printers printing, each with its progress bar, file, time left, temperatures, light, pause and stop"></td>
   </tr>
   <tr>
     <td><b>Cards</b>: one live card per printer, slide for more.</td>
     <td><b>List</b>: every printer at a glance. One touch switches view.</td>
   </tr>
   <tr>
-    <td><img src="assets/screens/printer-snapmaker-u1.png" alt="Full view of a Snapmaker U1: four tool heads with the active one ringed, and its four filaments"></td>
-    <td><img src="assets/screens/printer-flashforge-ad5x.png" alt="Full view of a FlashForge AD5X: its external spool and its four-slot material station"></td>
+    <td><img src="assets/screens/printer-snapmaker-u1.png" alt="Full view of a Snapmaker U1 printing: progress, layers, four tool heads with the active one ringed, and its four filaments"></td>
+    <td><img src="assets/screens/printer-flashforge-ad5x.png" alt="Full view of a FlashForge AD5X printing: progress, layers, its external spool and its four-slot material station"></td>
   </tr>
   <tr>
     <td><b>Snapmaker U1</b>: four tool heads, the active one ringed.</td>
     <td><b>FlashForge AD5X</b>: external spool and material station.</td>
   </tr>
 </table>
+
+<sub>Real printers, read live by Tiger Touch; for these pictures their progress,
+file names and times were filled in by a bench build, since they were idle.</sub>
 
 ## Printers
 
@@ -169,8 +176,8 @@ each know **one** family of printers.
 | **Eleven languages, time zone from your country** | ✅ | - | - |
 | **Free and open source (MIT)** | ✅ | - | - |
 
-What each one sends to a printer: Tiger Touch pauses, resumes, stops (with a
-1.5 s hold) and switches the light, **and nothing else, on purpose**: a stray
+What each one sends to a printer: Tiger Touch pauses, resumes, stops (after a
+confirmation) and switches the light, **and nothing else, on purpose**: a stray
 touch on a shared screen never heats, moves or starts anything. BIGTREETECH's
 firmwares give full control of their one family (starting prints, temperatures,
 moves), and you can go back to them at any time ([docs/INSTALL.md](docs/INSTALL.md)).

@@ -115,7 +115,11 @@ extern "C"
     const char *ui_state_text(pv_state_t s);
     void ui_state_colors(pv_state_t s, uint32_t *bg, uint32_t *fg);
     void ui_fmt_left(char *out, size_t n, int sec);
-    void ui_fmt_end(char *out, size_t n, int left_s);
+    /* The colour of a print's progress, the same on the ring, the card and the list
+ * bar: blue while it prints, orange paused, green finished, red on a fault.
+ * The dot beside the name says the connection; this says the print. */
+lv_color_t ui_progress_color(const printer_view_t *v, bool live);
+void ui_fmt_end(char *out, size_t n, int left_s);
 
     /* The screen is about to be cleared: forget every widget pointer. */
     void ui_dashboard_invalidate(void);
