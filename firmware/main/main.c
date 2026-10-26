@@ -847,6 +847,29 @@ static void run_language_page(void)
     }
 }
 
+/* One list; a touch on a line keeps it (Automatic forgets the choice) and goes back. */
+static void run_timezone_page(void)
+{
+    for (;;)
+    {
+        flush_events();
+        PT_LVGL_SCOPE_LOCK()
+        {
+            ui_show_tz_page(tz_manual());
+        }
+        app_event_t e = wait_event();
+        if (e.type == EV_BACK)
+        {
+            return;
+        }
+        if (e.type == EV_TZ_SET && e.index >= -1 && e.index < tz_pick_count())
+        {
+            tz_set_manual(e.index);
+            return;
+        }
+    }
+}
+
 static void run_restart_confirm(void)
 {
     flush_events();
@@ -1103,6 +1126,15 @@ static void run_settings(void)
         char email[96];
         const char *dn = cloud_display_name();
         strlcpy(email, dn[0] ? dn : cloud_email(), sizeof email);
+        char tz_label[40];
+        if (tz_manual() >= 0)
+        {
+            tz_pick_city(tz_manual(), tz_label, sizeof tz_label);
+        }
+        else
+        {
+            strlcpy(tz_label, tr(S_TZ_AUTO), sizeof tz_label);
+        }
         settings_menu_t m = {
             .printers_total = s_printer_count,
             .wifi_connected = online,
@@ -1113,6 +1145,7 @@ static void run_settings(void)
             .battery = screen_battery(),
             .demo = demo_mode_on(),
             .lan = lan_mode_live(),
+            .tz_label = tz_label,
         };
         for (int i = 0; i < s_printer_count; i++)
         {
@@ -1145,6 +1178,9 @@ static void run_settings(void)
             break;
         case EV_OPEN_LANGUAGE:
             run_language_page();
+            break;
+        case EV_OPEN_TZ:
+            run_timezone_page();
             break;
         case EV_OPEN_UPDATE:
             run_update_page();

@@ -33,6 +33,7 @@ typedef enum
     EV_OPEN_DEMO,
     EV_OPEN_LAN,
     EV_OPEN_LANGUAGE,
+    EV_OPEN_TZ,          /* the time zone page of the settings */
     EV_ASK_RESTART,      /* show the confirmation */
     EV_RESTART,          /* confirmed */
     EV_ASK_FACTORY,      /* show the factory-reset confirmation */
@@ -47,6 +48,7 @@ typedef enum
     EV_SET_LAN_LIVE,     /* index = 1 live view on, 0 off */
     EV_LAN_NEW_CODE,     /* draw a new access code */
     EV_SET_LANGUAGE,     /* index = lang_t */
+    EV_TZ_SET,           /* index = the line picked, -1 automatic */
     EV_OPEN_UPDATE,      /* the firmware update page */
     /* The first-boot setup and the account pages (ui_onboard.c). */
     EV_PROMPT_GO,        /* "Set up" / "Link now" */
@@ -141,6 +143,7 @@ typedef struct
     bool battery;               /* declared fitted (Settings > Battery) */
     bool demo;                  /* demo mode is on */
     bool lan;                   /* Live view is on */
+    const char *tz_label;       /* "Automatic", or the first place of the line picked */
 } settings_menu_t;
 void ui_show_settings_menu(const settings_menu_t *m);
 void ui_settings_menu_reset_scroll(void);
@@ -183,6 +186,9 @@ void ui_show_lan_page(bool live, const char *ip, const char *code);
 /* `first_boot`: the first page of the setup - its title is "Language" in
  * English whatever is set, and there is no way back from it. */
 void ui_show_language_page(int current_lang, bool first_boot);
+/* The time zone page: one list, "Automatic" first, then every line of tz.h. `manual_pick` is
+ * the line kept (-1 automatic). A touch posts EV_TZ_SET with the line (-1 for Automatic). */
+void ui_show_tz_page(int manual_pick);
 void ui_show_restart_confirm(void);
 void ui_show_factory_confirm(void);
 

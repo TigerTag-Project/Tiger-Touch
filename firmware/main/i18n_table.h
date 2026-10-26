@@ -496,3 +496,11 @@ X(S_ST_ERROR, "Error", "Erreur", "Fehler", "Error", "Errore", "错误", "Erro", 
   "Fout")
 X(S_ST_IDLE, "Idle", "Repos", "Bereit", "En reposo", "A riposo", "空闲", "Em repouso", "Em repouso",
   "Bezczynna", "Простой", "Inactief")
+X(S_TIMEZONE, "Time zone", "Fuseau horaire", "Zeitzone", "Zona horaria", "Fuso orario",
+  "时区", "Fuso horário", "Fuso horário", "Strefa czasowa", "Часовой пояс", "Tijdzone")
+X(S_TZ_AUTO, "Automatic", "Automatique", "Automatisch", "Automático", "Automatico",
+  "自动", "Automático", "Automático", "Automatycznie", "Автоматически", "Automatisch")
+X(S_TZ_SUMMER, "summer time", "heure d'été", "Sommerzeit", "horario de verano", "ora legale",
+  "夏令时", "horário de verão", "hora de verão", "czas letni", "летнее время", "zomertijd")
+X(S_TZ_WINTER, "winter time", "heure d'hiver", "Winterzeit", "horario de invierno", "ora solare",
+  "冬令时", "horário de inverno", "hora de inverno", "czas zimowy", "зимнее время", "wintertijd")

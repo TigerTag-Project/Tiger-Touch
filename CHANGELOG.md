@@ -16,6 +16,17 @@ they were written.
 
 ## [Unreleased]
 
+### Added
+- **A time zone setting.** *Settings > Time zone*, right under *Language*, is one list:
+  Automatic (the zone of the TigerSystem account's country, as before), then 63 lines
+  covering every time zone of the world, in the order of the clock. Each line gives the
+  offset in force today (UTC+1), the places that follow it (Paris, Berlin, Rome, Madrid) and,
+  when its zone changes its clock, whether it is on summer or winter time now; a touch keeps
+  it, and the settings show its first place. A zone picked by hand wins over the account and the access point, and
+  stays across restarts and updates. The list is generated from the IANA database, each
+  line checked against it for three years, and the page builds eight rows that follow the
+  scroll rather than 64.
+
 ## [2.4.0] - 2026-10-20
 
 

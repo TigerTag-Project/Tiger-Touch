@@ -4,11 +4,13 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "esp_app_desc.h"
 
 #include "brand_logos.h"
 #include "i18n.h"
+#include "tz.h"
 #include "ui_setup.h"
 #include "ui_theme.h"
 #include "ui_wifi.h"
@@ -201,6 +203,7 @@ typedef enum
     ICON_GLOBE,
     ICON_SUN,
     ICON_PRINTER,
+    ICON_CLOCK,
 } icon_kind_t;
 
 static void draw_icon(lv_obj_t *box, icon_kind_t kind, const char *glyph, lv_color_t col)
@@ -234,6 +237,11 @@ static void draw_icon(lv_obj_t *box, icon_kind_t kind, const char *glyph, lv_col
         lv_obj_center(l);
         break;
     }
+    case ICON_CLOCK: /* a ring and two hands */
+        shape(box, 3, 3, 34, 34, LV_RADIUS_CIRCLE, col, true);
+        shape(box, 19, 9, 3, 13, 1, col, false);
+        shape(box, 19, 19, 10, 3, 1, col, false);
+        break;
     case ICON_PRINTER: /* a frame, the head on its gantry, the bed */
         shape(box, 2, 2, 36, 36, 5, col, true);
         shape(box, 8, 11, 24, 3, 1, col, false);
@@ -337,6 +345,7 @@ void ui_show_settings_menu(const settings_menu_t *m)
                  tr(m->battery ? S_ON : S_OFF), m->battery ? C_GREEN : C_MUTED, EV_OPEN_BATTERY);
     settings_row(list, ICON_GLOBE, NULL, C_TEXT, tr(S_LANGUAGE), C_TEXT, i18n_native_name(i18n_lang()), C_MUTED,
                  EV_OPEN_LANGUAGE);
+    settings_row(list, ICON_CLOCK, NULL, C_TEXT, tr(S_TIMEZONE), C_TEXT, m->tz_label, C_MUTED, EV_OPEN_TZ);
     settings_row(list, ICON_GLYPH, LV_SYMBOL_EYE_OPEN, m->lan ? C_GREEN : C_MUTED, tr(S_LAN_LIVE), C_TEXT,
                  tr(m->lan ? S_ON : S_OFF), m->lan ? C_GREEN : C_MUTED, EV_OPEN_LAN);
     settings_row(list, ICON_GLYPH, LV_SYMBOL_PLAY, m->demo ? C_ACCENT : C_MUTED, tr(S_DEMO), C_TEXT,
@@ -920,6 +929,174 @@ void ui_show_language_page(int current_lang, bool first_boot)
                                     i == current_lang, on_language, (void *)(intptr_t)i);
         (void)b;
     }
+}
+
+/* ---- Time zone ------------------------------------------------------------ */
+/* One list of 64 rows: Automatic, then the 63 lines of tz.h. Built as rows would be,
+ * that is 64 buttons and 192 labels in internal RAM, which this board has little of.
+ * So only a few rows exist: they are moved under the finger as the list scrolls and
+ * given the text of the line they now stand for. A transparent block as tall as the
+ * whole list gives the scroll its length and its bar. */
+
+#define TZ_POOL 8
+#define TZ_PITCH (ROW_H + ROW_GAP)
+#define TZ_ROW_W 690 /* the list's width less its padding, 16 + 18 */
+#define TZ_STD_X 22
+#define TZ_STD_W 136
+#define TZ_PLACES_X 168
+#define TZ_SUMMER_W 176
+
+typedef struct
+{
+    lv_obj_t *list;
+    lv_obj_t *row[TZ_POOL];
+    lv_obj_t *std[TZ_POOL];
+    lv_obj_t *places[TZ_POOL];
+    lv_obj_t *summer[TZ_POOL];
+    int items;    /* Automatic and every line */
+    int selected; /* the line kept, -1 for Automatic */
+    int first;    /* the item the first pooled row stands for, -1 before the first fill */
+} tz_page_t;
+
+static tz_page_t s_tzp;
+
+static void on_tz_row(lv_event_t *e)
+{
+    const int pick = (int)(intptr_t)lv_obj_get_user_data(lv_event_get_target_obj(e));
+    ui_post(EV_TZ_SET, pick, NULL, NULL);
+}
+
+/* The pooled rows stand for items first .. first + TZ_POOL - 1. */
+static void tz_fill(int first)
+{
+    s_tzp.first = first;
+    for (int k = 0; k < TZ_POOL; k++)
+    {
+        lv_obj_t *row = s_tzp.row[k];
+        const int item = first + k;
+        if (item >= s_tzp.items)
+        {
+            lv_obj_set_hidden(row, true);
+            continue;
+        }
+        const int pick = item - 1; /* item 0 is Automatic */
+        const bool sel = pick == s_tzp.selected;
+        const lv_color_t col = sel ? C_ACCENT : C_TEXT;
+        lv_obj_set_hidden(row, false);
+        lv_obj_set_pos(row, 0, item * TZ_PITCH);
+        lv_obj_set_user_data(row, (void *)(intptr_t)pick);
+        lv_obj_set_style_border_color(row, sel ? C_ACCENT : C_LINE, 0);
+        lv_obj_set_style_border_width(row, sel ? 2 : 1, 0);
+        lv_obj_set_style_text_color(s_tzp.std[k], col, 0);
+        lv_obj_set_style_text_color(s_tzp.places[k], col, 0);
+        if (pick < 0)
+        {
+            lv_label_set_text(s_tzp.std[k], tr(S_TZ_AUTO));
+            lv_obj_set_width(s_tzp.std[k], TZ_ROW_W - 2 * TZ_STD_X);
+            lv_obj_set_hidden(s_tzp.places[k], true);
+            lv_obj_set_hidden(s_tzp.summer[k], true);
+            continue;
+        }
+        char off[16];
+        const time_t now = time(NULL);
+        tz_format_offset(tz_pick_offset_min(pick, now), off, sizeof off);
+        lv_label_set_text(s_tzp.std[k], off);
+        lv_obj_set_width(s_tzp.std[k], TZ_STD_W);
+        /* Only a zone that changes its clock says which of its two times it keeps now. */
+        const bool summer = tz_pick_summer(pick);
+        if (summer)
+        {
+            lv_label_set_text(s_tzp.summer[k], tr(tz_pick_in_summer(pick, now) ? S_TZ_SUMMER : S_TZ_WINTER));
+        }
+        lv_label_set_text(s_tzp.places[k], tz_pick_places(pick));
+        lv_obj_set_width(s_tzp.places[k], TZ_ROW_W - TZ_PLACES_X - TZ_STD_X - (summer ? TZ_SUMMER_W + 8 : 0));
+        lv_obj_set_hidden(s_tzp.places[k], false);
+        lv_obj_set_hidden(s_tzp.summer[k], !summer);
+    }
+}
+
+static void on_tz_scroll(lv_event_t *e)
+{
+    (void)e;
+    int first = lv_obj_get_scroll_y(s_tzp.list) / TZ_PITCH - 1; /* a row of margin above the screen */
+    if (first > s_tzp.items - TZ_POOL)
+    {
+        first = s_tzp.items - TZ_POOL;
+    }
+    if (first < 0)
+    {
+        first = 0;
+    }
+    if (first != s_tzp.first)
+    {
+        tz_fill(first);
+    }
+}
+
+void ui_show_tz_page(int manual_pick)
+{
+    lv_obj_t *scr = ui_kit_page();
+    header(scr, tr(S_TIMEZONE));
+    ui_kit_clock(scr); /* to see the zone at work */
+
+    memset(&s_tzp, 0, sizeof s_tzp);
+    s_tzp.items = tz_pick_count() + 1;
+    s_tzp.selected = manual_pick;
+    s_tzp.first = -1;
+    lv_obj_t *list = ui_kit_scroll_list(scr, 2 * TZ_PITCH);
+    s_tzp.list = list;
+
+    lv_obj_t *block = lv_obj_create(list);
+    lv_obj_remove_style_all(block);
+    lv_obj_set_size(block, TZ_ROW_W, s_tzp.items * TZ_PITCH - ROW_GAP);
+    lv_obj_set_clickable(block, false);
+
+    for (int k = 0; k < TZ_POOL; k++)
+    {
+        lv_obj_t *row = lv_button_create(list);
+        lv_obj_set_ignore_layout(row, true);
+        lv_obj_set_size(row, TZ_ROW_W, ROW_H);
+        lv_obj_set_style_bg_color(row, C_CARD, 0);
+        lv_obj_set_style_bg_color(row, C_TILE, LV_STATE_PRESSED);
+        lv_obj_set_style_radius(row, 14, 0);
+        lv_obj_set_style_shadow_width(row, 0, 0);
+        lv_obj_set_style_pad_all(row, 0, 0);
+        lv_obj_add_event_cb(row, on_tz_row, LV_EVENT_CLICKED, NULL);
+        lv_obj_set_hidden(row, true);
+        s_tzp.row[k] = row;
+
+        s_tzp.std[k] = ui_kit_txt(row, &font_ui_24, C_TEXT, "", 0, 0);
+        lv_obj_set_height(s_tzp.std[k], lv_font_get_line_height(&font_ui_24));
+        lv_label_set_long_mode(s_tzp.std[k], LV_LABEL_LONG_DOT);
+        lv_obj_align(s_tzp.std[k], LV_ALIGN_LEFT_MID, TZ_STD_X, 0);
+
+        s_tzp.places[k] = ui_kit_txt(row, &font_ui_20, C_TEXT, "", 0, 0);
+        lv_obj_set_height(s_tzp.places[k], lv_font_get_line_height(&font_ui_20));
+        lv_label_set_long_mode(s_tzp.places[k], LV_LABEL_LONG_DOT);
+        lv_obj_align(s_tzp.places[k], LV_ALIGN_LEFT_MID, TZ_PLACES_X, 0);
+
+        s_tzp.summer[k] = ui_kit_txt(row, &font_ui_16, C_MUTED, tr(S_TZ_SUMMER), 0, 0);
+        lv_obj_set_width(s_tzp.summer[k], TZ_SUMMER_W);
+        lv_obj_set_height(s_tzp.summer[k], lv_font_get_line_height(&font_ui_16));
+        lv_label_set_long_mode(s_tzp.summer[k], LV_LABEL_LONG_DOT);
+        lv_obj_set_style_text_align(s_tzp.summer[k], LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_align(s_tzp.summer[k], LV_ALIGN_RIGHT_MID, -TZ_STD_X, 0);
+    }
+    lv_obj_add_event_cb(list, on_tz_scroll, LV_EVENT_SCROLL, NULL);
+
+    /* Open on the line kept, a row below the top so that its neighbours show. */
+    lv_obj_update_layout(list);
+    const int item = manual_pick + 1;
+    if (item > 1)
+    {
+        lv_obj_scroll_to_y(list, (item - 1) * TZ_PITCH, LV_ANIM_OFF);
+    }
+    on_tz_scroll(NULL);
+    if (s_tzp.first < 0)
+    {
+        tz_fill(0);
+    }
+    ui_kit_scroll_rail(scr, list);
 }
 
 /* ---- Restart -------------------------------------------------------------- */

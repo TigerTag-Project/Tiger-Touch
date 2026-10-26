@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Generate firmware/main/net/tz_table.h: country (or Canadian province) -> POSIX
-time zone rule, from the IANA time zone database.
+time zone rule, and the list a person picks their zone from (Settings > Time zone),
+from the IANA time zone database.
 
     python firmware/tools/make_tz_table.py --zoneinfo /usr/share/zoneinfo
 
@@ -65,6 +66,82 @@ APPROXIMATE = {
     "MA": "UTC+1 all year, UTC+0 during Ramadan",
     "EH": "UTC+1 all year, UTC+0 during Ramadan",
     "GL": "daylight time begins one hour late (a negative transition hour is not readable)",
+}
+
+# The list a person picks from: one line per distinct rule of the database, in the order of
+# the clock (the lower of a line's two offsets, then the lines of one offset with no daylight time
+# before those with). The zone names the rule; the places are what a person recognises, the first being the
+# one the settings show. Every rule of zone.tab must have exactly one line: the script says
+# which is missing or doubled.
+PICKS = [
+    ("Pacific/Pago_Pago", "Pago Pago, Midway, Niue"),
+    ("Pacific/Honolulu", "Honolulu, Tahiti, Rarotonga"),
+    ("America/Adak", "Adak"),
+    ("Pacific/Marquesas", "Marquesas"),
+    ("Pacific/Gambier", "Gambier"),
+    ("America/Anchorage", "Anchorage, Juneau"),
+    ("Pacific/Pitcairn", "Pitcairn"),
+    ("America/Los_Angeles", "Los Angeles, Tijuana"),
+    ("America/Phoenix", "Phoenix, Vancouver, Hermosillo, Whitehorse"),
+    ("America/Denver", "Denver, Edmonton, Boise"),
+    ("America/Mexico_City", "Mexico City, Guatemala, Costa Rica"),
+    ("America/Chicago", "Chicago, Winnipeg, Matamoros"),
+    ("Pacific/Easter", "Easter Island"),
+    ("America/Bogota", "Bogota, Lima, Panama, Jamaica"),
+    ("America/New_York", "New York, Toronto, Detroit"),
+    ("America/Havana", "Havana"),
+    ("America/Caracas", "Caracas, La Paz, Manaus, Puerto Rico"),
+    ("America/Halifax", "Halifax, Bermuda"),
+    ("America/Santiago", "Santiago"),
+    ("America/St_Johns", "St John's"),
+    ("America/Sao_Paulo", "Sao Paulo, Buenos Aires, Montevideo"),
+    ("America/Miquelon", "Miquelon"),
+    ("America/Noronha", "Noronha, South Georgia"),
+    ("America/Nuuk", "Nuuk, Scoresbysund"),
+    ("Atlantic/Cape_Verde", "Cape Verde"),
+    ("Atlantic/Azores", "Azores"),
+    ("Africa/Abidjan", "Dakar, Accra, Abidjan, Reykjavik"),
+    ("Europe/London", "London, Lisbon, Canaries"),
+    ("Antarctica/Troll", "Troll"),
+    ("Europe/Dublin", "Dublin"),
+    ("Africa/Lagos", "Lagos, Algiers, Tunis"),
+    ("Europe/Paris", "Paris, Berlin, Rome, Madrid"),
+    ("Africa/Johannesburg", "Johannesburg, Harare, Khartoum"),
+    ("Asia/Jerusalem", "Jerusalem"),
+    ("Asia/Gaza", "Gaza, Hebron"),
+    ("Asia/Beirut", "Beirut"),
+    ("Europe/Athens", "Athens, Helsinki, Kyiv, Bucharest"),
+    ("Africa/Cairo", "Cairo"),
+    ("Europe/Moscow", "Moscow, Istanbul, Riyadh, Nairobi"),
+    ("Asia/Tehran", "Tehran"),
+    ("Asia/Dubai", "Dubai, Baku, Tbilisi"),
+    ("Asia/Kabul", "Kabul"),
+    ("Asia/Karachi", "Karachi, Tashkent, Maldives"),
+    ("Asia/Kolkata", "Delhi, Mumbai, Colombo"),
+    ("Asia/Kathmandu", "Kathmandu"),
+    ("Asia/Dhaka", "Dhaka, Bishkek, Omsk"),
+    ("Asia/Yangon", "Yangon, Cocos Islands"),
+    ("Asia/Bangkok", "Bangkok, Jakarta, Hanoi"),
+    ("Asia/Shanghai", "Beijing, Singapore, Hong Kong, Perth"),
+    ("Australia/Eucla", "Eucla"),
+    ("Asia/Tokyo", "Tokyo, Seoul"),
+    ("Australia/Darwin", "Darwin"),
+    ("Australia/Adelaide", "Adelaide"),
+    ("Australia/Brisbane", "Brisbane, Vladivostok, Guam"),
+    ("Australia/Sydney", "Sydney, Melbourne, Hobart"),
+    ("Australia/Lord_Howe", "Lord Howe Island"),
+    ("Pacific/Guadalcanal", "Noumea, Solomon Islands, Magadan"),
+    ("Pacific/Norfolk", "Norfolk Island"),
+    ("Pacific/Fiji", "Fiji, Kamchatka, Majuro"),
+    ("Pacific/Auckland", "Auckland, McMurdo"),
+    ("Pacific/Chatham", "Chatham Islands"),
+    ("Pacific/Tongatapu", "Tonga, Apia, Fakaofo"),
+    ("Pacific/Kiritimati", "Kiritimati"),
+]
+
+# The lines whose database offset a rule cannot reproduce at all times (same two causes).
+APPROXIMATE_PICKS = {
+    "America/Nuuk": "daylight time begins one hour late (a negative transition hour is not readable)",
 }
 
 # The Studio account stores a Canadian province as CA-XX (VAT is per province),
@@ -196,6 +273,10 @@ def main():
             raise SystemExit("%s has %d zones and no usable entry in PRIMARY" % (cc, len(zones[cc])))
     for code, name in PROVINCES.items():
         chosen[code] = name
+    all_zone_rules = set()
+    for names in zones.values():
+        for name in names:
+            all_zone_rules.add(canonical(footer(os.path.join(zi, *name.split("/")))))
 
     rules, index, entries = [], {}, []
     for code in sorted(chosen):
@@ -205,6 +286,20 @@ def main():
             index[c] = len(rules)
             rules.append(c)
         entries.append((code, index[c], chosen[code]))
+    pick_entries = []
+    seen = {}
+    for zone, places in PICKS:
+        c = canonical(footer(os.path.join(zi, *zone.split("/"))))
+        if c in seen:
+            raise SystemExit("two lines of PICKS have the rule %s: %s and %s" % (c, seen[c], zone))
+        seen[c] = zone
+        if c not in index:
+            index[c] = len(rules)
+            rules.append(c)
+        pick_entries.append((zone, places, index[c]))
+    missing = sorted(all_zone_rules - set(seen))
+    if missing:
+        raise SystemExit("no line in PICKS for the rule(s): " + ", ".join(missing))
     if len(rules) > 255:
         raise SystemExit("more than 255 distinct rules")
 
@@ -230,13 +325,29 @@ def main():
     for code in APPROXIMATE:
         if code in chosen and code not in approx:
             print("note: %s is listed as approximate but matched; remove it from APPROXIMATE" % code)
+    approx_picks = []
+    for zone, _places, ri in pick_entries:
+        tz = zoneinfo.ZoneInfo(zone)
+        for ts in range(start, stop, 1800):
+            want = int(datetime.datetime.fromtimestamp(ts, tz).utcoffset().total_seconds())
+            if want != offset_at(rules[ri], ts):
+                if zone in APPROXIMATE_PICKS:
+                    approx_picks.append(zone)
+                    break
+                print("MISMATCH pick %s rule %s at %d: database %d, rule %d" % (zone, rules[ri], ts, want, offset_at(rules[ri], ts)))
+                bad += 1
+                break
+    for zone in APPROXIMATE_PICKS:
+        if zone not in approx_picks:
+            print("note: %s is listed as approximate but matched; remove it from APPROXIMATE_PICKS" % zone)
     if bad:
         raise SystemExit("%d entries do not reproduce the database; nothing written" % bad)
 
     out = []
     out.append("/* GENERATED by firmware/tools/make_tz_table.py from the IANA time zone database")
-    out.append(" * %s. Do not edit: run the script. One POSIX rule per country (the zone of its" % version)
-    out.append(" * capital or largest city when it has several) and one per Canadian province. */")
+    out.append(" * %s. Do not edit: run the script. One POSIX rule per country (the zone of its" % version.split("-")[0])
+    out.append(" * capital or largest city when it has several) and one per Canadian province, and the")
+    out.append(" * list a person picks their zone from, one line per rule of the database. */")
     out.append("#pragma once")
     out.append("")
     out.append("#include <stdint.h>")
@@ -258,10 +369,25 @@ def main():
         out.append('    {"%s", %d},' % (code, ri))
     out.append("};")
     out.append("")
+    out.append("typedef struct")
+    out.append("{")
+    out.append("    const char *zone;   /* the database's name of the zone, kept in the settings */")
+    out.append("    const char *places; /* what a person recognises; the first is the one the settings show */")
+    out.append("    uint8_t rule;       /* index in TZ_RULES */")
+    out.append("} tz_pick_t;")
+    out.append("")
+    out.append("/* In the order of the clock, not sorted by name. */")
+    out.append("static const tz_pick_t TZ_PICKS[] = {")
+    for zone, places, ri in pick_entries:
+        out.append('    {"%s", "%s", %d},' % (zone, places, ri))
+    out.append("};")
+    out.append("")
     path = os.path.normpath(args.out)
     open(path, "w", encoding="utf-8", newline="\n").write("\n".join(out))
-    print("database %s: %d entries (%d provinces), %d distinct rules, verified for three years from %s -> %s"
-          % (version, len(entries), len(PROVINCES), len(rules), now.date(), os.path.basename(path)))
+    print("database %s: %d entries (%d provinces) and %d lines to pick from, %d distinct rules, verified for three years from %s -> %s"
+          % (version, len(entries), len(PROVINCES), len(pick_entries), len(rules), now.date(), os.path.basename(path)))
+    for zone in approx_picks:
+        print("approximate line: %s (%s)" % (zone, APPROXIMATE_PICKS[zone]))
     for code in approx:
         print("approximate: %s (%s)" % (code, APPROXIMATE[code]))
 
