@@ -100,9 +100,23 @@ typedef struct
     uint32_t ext_color;
     char ext_material[12];
     bool light_on; /* the chamber light, from the `light` report */
+    int light_type; /* the chamber lamp's `type`, as its `light` report names it; 0 until a report has (a Kobra S1: 2) */
+    int light_hint; /* 2 for a Kobra S1 Combo of the account, which a cloud printer cannot learn from a report; else 0 */
     char cloud_id[24]; /* cloud: the printer's id at Anycubic (cloudPrinterId), for REST orders */
     char taskid[24];   /* the job in the print reports, the project an order names */
 } acu_t;
+
+/* The TigerTag catalogue id of a Kobra S1 Combo (Tiger Studio's data/printers/acu_printer_models.json). */
+#define MODEL_KOBRA_S1_COMBO "4"
+
+/* The `type` a light command names: the lamp the printer reported, else the one
+ * its model gives, else 3, the chamber lamp of the Kobra X. A Kobra S1 refuses
+ * the 3 ("camera light open fail", code 10348): its chamber lamp is 2. The caller
+ * holds the lock. */
+static int light_type_of(const acu_t *c)
+{
+    return c->light_type ? c->light_type : c->light_hint ? c->light_hint : 3;
+}
 
 /* ---- Requests ------------------------------------------------------------- */
 
@@ -335,12 +349,45 @@ static void handle_message(acu_t *c, const char *buf, size_t len)
     }
     else if (!strcmp(type, "light"))
     {
-        /* Shape not fully known (Tiger Studio parses it defensively too): a
-         * `status` of 0 or 1 beside the brightness. */
-        const cJSON *st = cJSON_IsObject(data) ? cJSON_GetObjectItem(data, "status") : NULL;
-        if (cJSON_IsNumber(st))
+        /* Two shapes: a query answers { "lights": [ { type, status, brightness } ] },
+         * a control answers the lamp flat; an older report may carry no type. A type-1
+         * light is the camera's, so the chamber lamp is the other one. Its type is
+         * kept: it is what the next light command has to name. */
+        const cJSON *lamp = NULL;
+        const cJSON *list = cJSON_IsObject(data) ? cJSON_GetObjectItem(data, "lights") : NULL;
+        if (cJSON_IsArray(list))
         {
-            c->light_on = st->valuedouble != 0.0;
+            const cJSON *l;
+            cJSON_ArrayForEach(l, list)
+            {
+                const cJSON *lt = cJSON_IsObject(l) ? cJSON_GetObjectItem(l, "type") : NULL;
+                if (cJSON_IsObject(l) && !(cJSON_IsNumber(lt) && lt->valueint == 1))
+                {
+                    lamp = l;
+                    break;
+                }
+            }
+        }
+        else if (cJSON_IsObject(data))
+        {
+            const cJSON *lt = cJSON_GetObjectItem(data, "type");
+            if (!(cJSON_IsNumber(lt) && lt->valueint == 1))
+            {
+                lamp = data;
+            }
+        }
+        if (lamp)
+        {
+            const cJSON *lt = cJSON_GetObjectItem(lamp, "type");
+            const cJSON *st = cJSON_GetObjectItem(lamp, "status");
+            if (cJSON_IsNumber(lt) && lt->valueint > 0)
+            {
+                c->light_type = lt->valueint;
+            }
+            if (cJSON_IsNumber(st))
+            {
+                c->light_on = st->valuedouble != 0.0;
+            }
         }
     }
     else if (!strcmp(type, "status"))
@@ -935,6 +982,10 @@ static void *acu_start(const account_printer_t *p)
     strlcpy(c->pstate, "idle", sizeof c->pstate);
     strlcpy(c->devid, p->dev_id, sizeof c->devid);
     strlcpy(c->model, p->acu_model, sizeof c->model);
+    if (!strcmp(p->model_id, MODEL_KOBRA_S1_COMBO))
+    {
+        c->light_hint = 2; /* a cloud printer cannot ask for its lamp: its model says it */
+    }
 
     if (p->cloud)
     {
@@ -1051,7 +1102,7 @@ static void acu_stop(void *ctx)
  * a nonce and the app id again) with the account's workbench token. The app
  * id, secret and version come from the account (cloud_anycubic_signer), never
  * from this firmware. Orders: 2 pause, 3 resume, 4 stop (they name the job),
- * 1233 light {type 3, status, brightness}.
+ * 1233 light {type, status, brightness}: the lamp's type, see light_type_of().
  *
  * A REST call takes a second or two (a TLS handshake): it runs on a small task
  * of its own, fed by a queue, so a touch never waits for it. */
@@ -1067,7 +1118,8 @@ typedef struct
     char printer[24];
     char project[24];
     int order;
-    int light; /* ORD_LIGHT: 1 on, 0 off */
+    int light;      /* ORD_LIGHT: 1 on, 0 off */
+    int light_type; /* ORD_LIGHT: the lamp, from light_type_of() */
 } acu_order_t;
 
 static QueueHandle_t s_orders;
@@ -1109,8 +1161,8 @@ static bool send_order(const acu_order_t *o)
     if (o->order == ORD_LIGHT)
     {
         snprintf(body, sizeof body,
-                 "{\"order_id\":%d,\"printer_id\":%s,\"data\":{\"type\":3,\"status\":%d,\"brightness\":%d}}",
-                 o->order, o->printer, o->light, o->light ? 100 : 0);
+                 "{\"order_id\":%d,\"printer_id\":%s,\"data\":{\"type\":%d,\"status\":%d,\"brightness\":%d}}",
+                 o->order, o->printer, o->light_type, o->light, o->light ? 100 : 0);
     }
     else if (o->project[0])
     {
@@ -1234,6 +1286,9 @@ static bool cloud_control(acu_t *c, pv_control_t cmd)
     {
         o.order = ORD_LIGHT;
         o.light = cmd == PV_CTL_LIGHT_ON;
+        xSemaphoreTake(c->lock, portMAX_DELAY);
+        o.light_type = light_type_of(c);
+        xSemaphoreGive(c->lock);
     }
     else if (cmd == PV_CTL_PAUSE || cmd == PV_CTL_RESUME || cmd == PV_CTL_STOP)
     {
@@ -1277,14 +1332,18 @@ static bool acu_control(void *ctx, pv_control_t cmd)
     }
     if (c && c->mqtt && c->connected && c->subscribed && (cmd == PV_CTL_LIGHT_ON || cmd == PV_CTL_LIGHT_OFF))
     {
-        /* `light` family, type 3 is the chamber light (type 1 is the camera's). */
+        /* `light` family; the data's type names the lamp: the chamber's (3 on a Kobra X, 2 on a
+         * Kobra S1), not the camera's (1). */
         const bool on = cmd == PV_CTL_LIGHT_ON;
         char ltopic[200], lbody[240];
         snprintf(ltopic, sizeof ltopic, "%s/light", c->t_cmd_prefix);
+        xSemaphoreTake(c->lock, portMAX_DELAY);
+        const int lamp = light_type_of(c);
+        xSemaphoreGive(c->lock);
         const int ln = snprintf(lbody, sizeof lbody,
                                 "{\"type\":\"light\",\"action\":\"control\",\"timestamp\":%lld,\"msgid\":\"tt-%u\","
-                                "\"data\":{\"type\":3,\"status\":%d,\"brightness\":%d}}",
-                                (long long)time(NULL) * 1000LL, (unsigned)++c->seq, on ? 1 : 0, on ? 100 : 0);
+                                "\"data\":{\"type\":%d,\"status\":%d,\"brightness\":%d}}",
+                                (long long)time(NULL) * 1000LL, (unsigned)++c->seq, lamp, on ? 1 : 0, on ? 100 : 0);
         return ln > 0 && esp_mqtt_client_publish(c->mqtt, ltopic, lbody, ln, 0, 0) >= 0;
     }
     if (!c || !c->mqtt || !c->connected || !c->subscribed || (int)cmd < 0 || (int)cmd > PV_CTL_STOP)
