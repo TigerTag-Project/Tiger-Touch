@@ -16,6 +16,24 @@ they were written.
 
 ## [Unreleased]
 
+### Fixed
+- **The light button of an Anycubic Kobra S1 names the right lamp.** The firmware
+  always asked for lamp type 3, the chamber lamp of the Kobra X; a Kobra S1 reads
+  it as its camera light and answers "camera light open fail" (code 10348). Its
+  chamber lamp is type 2, and over the LAN the printer says so in its `light`
+  report (a `lights` list the firmware did not read, which also kept the button
+  from showing the real state): the firmware now keeps that type and sends it.
+  A cloud printer cannot ask, so a Kobra S1 Combo of the account is sent type 2
+  from the start. Every other printer still gets 3. Compiled, not tried on a
+  Kobra S1.
+- **An empty slot of an Anycubic ACE is no longer drawn as a spool.** A slot that
+  lost its spool keeps its last material and colour in the printer's report, so a
+  Kobra S1 with an empty third slot showed it as white PLA while the slicer said
+  "Not Recorded" and Tiger Studio showed a "?". The firmware now reads each slot's
+  `status` (5 is filament in the slot, 4 is none) and draws a slot without filament
+  as empty. A report with no `status` counts as loaded, as before. Compiled, not
+  tried on a Kobra S1 or an ACE.
+
 ## [2.4.0] - 2026-10-20
 
 
