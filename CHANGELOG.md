@@ -16,6 +16,13 @@ they were written.
 
 ## [Unreleased]
 
+### Fixed
+- **An AFC lane is listed once.** A CANVAS on an OpenCentauri CC1 publishes each
+  lane twice, as `AFC_stepper <lane>` and `AFC_lane <lane>`; the Klipper driver
+  counted both, so four filaments showed as two units of four, every one doubled.
+  A lane is now one slot, read from its `AFC_lane` object. Compiled, not tried on
+  a CC1.
+
 ## [2.4.0] - 2026-10-20
 
 

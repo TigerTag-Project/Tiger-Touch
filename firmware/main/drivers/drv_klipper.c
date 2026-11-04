@@ -65,8 +65,8 @@ typedef struct
     char light[48];   /* the whole object name, "led chamber" / "output_pin caselight" */
     bool light_is_pin;
     bool mmu;
-    char afc_prefix[16]; /* "AFC_stepper" or "AFC_lane" */
     char afc_lane[MAX_LANES][16];
+    bool afc_by_lane[MAX_LANES]; /* the lane's object is "AFC_lane <lane>", else "AFC_stepper <lane>" */
     int n_afc;
     char *query; /* the body of the poll, built from the above */
 
@@ -107,6 +107,12 @@ static const char *second_token(const char *obj)
 {
     const char *sp = strchr(obj, ' ');
     return sp ? sp + 1 : obj;
+}
+
+/* The object lane i is read from: "AFC_lane <lane>" when the printer publishes it, else "AFC_stepper <lane>". */
+static void afc_object(const klip_t *c, int i, char *out, size_t cap)
+{
+    snprintf(out, cap, "%s %s", c->afc_by_lane[i] ? "AFC_lane" : "AFC_stepper", c->afc_lane[i]);
 }
 
 static bool icontains(const char *s, const char *needle)
@@ -163,7 +169,7 @@ static bool detect(klip_t *c, char *reply)
         return false;
     }
     c->n_ext = 0;
-    c->chamber[0] = c->light[0] = c->afc_prefix[0] = '\0';
+    c->chamber[0] = c->light[0] = '\0';
     c->mmu = false;
     c->n_afc = 0;
     char chamber_any[48] = "";
@@ -188,13 +194,30 @@ static bool detect(klip_t *c, char *reply)
         {
             c->mmu = true;
         }
-        else if ((starts(n, "AFC_stepper ") || starts(n, "AFC_lane ")) && c->n_afc < MAX_LANES)
+        else if (starts(n, "AFC_stepper ") || starts(n, "AFC_lane "))
         {
-            if (!c->afc_prefix[0])
+            /* One slot per lane. A unit may publish the same lane twice, as `AFC_stepper <lane>` and
+             * `AFC_lane <lane>` (a CANVAS on an OpenCentauri CC1 does, which drew every lane twice):
+             * the `AFC_lane` object wins, in the order the lane was first met. */
+            const char *lane = second_token(n);
+            int k = 0;
+            while (k < c->n_afc && strcmp(c->afc_lane[k], lane))
             {
-                snprintf(c->afc_prefix, sizeof c->afc_prefix, "%.*s", (int)(strchr(n, ' ') - n), n);
+                k++;
             }
-            strlcpy(c->afc_lane[c->n_afc++], second_token(n), sizeof c->afc_lane[0]);
+            if (k < MAX_LANES)
+            {
+                if (k == c->n_afc)
+                {
+                    strlcpy(c->afc_lane[k], lane, sizeof c->afc_lane[0]);
+                    c->afc_by_lane[k] = false;
+                    c->n_afc++;
+                }
+                if (starts(n, "AFC_lane "))
+                {
+                    c->afc_by_lane[k] = true;
+                }
+            }
         }
         else if (!strcmp(n, "heater_generic chamber") || !strcmp(n, "temperature_sensor chamber"))
         {
@@ -263,9 +286,10 @@ static bool detect(klip_t *c, char *reply)
         at += snprintf(c->query + at, QUERY_MAX - at, ",\"AFC\":[\"current_lane\"]");
         for (int i = 0; i < c->n_afc && at < QUERY_MAX; i++)
         {
+            char obj[40];
+            afc_object(c, i, obj, sizeof obj);
             at += snprintf(c->query + at, QUERY_MAX - at,
-                           ",\"%s %s\":[\"material\",\"color\",\"load\",\"prep\",\"tool_loaded\"]", c->afc_prefix,
-                           c->afc_lane[i]);
+                           ",\"%s\":[\"material\",\"color\",\"load\",\"prep\",\"tool_loaded\"]", obj);
         }
     }
     if (at < QUERY_MAX)
@@ -381,7 +405,7 @@ static void parse_status(klip_t *c, const cJSON *s)
         for (int i = 0; i < c->n_afc; i++)
         {
             char name[40];
-            snprintf(name, sizeof name, "%s %s", c->afc_prefix, c->afc_lane[i]);
+            afc_object(c, i, name, sizeof name);
             const cJSON *o = cJSON_GetObjectItem(s, name);
             lane_t *l = &c->lane[i];
             l->present = !(cJSON_IsFalse(cJSON_GetObjectItem(o, "load")) &&
