@@ -297,7 +297,13 @@ static void apply_layout(acu_t *c, const cJSON *boxes)
                 continue;
             }
             const cJSON *type = cJSON_GetObjectItem(s, "type");
-            const bool has = cJSON_IsString(type) && type->valuestring[0];
+            /* A slot that lost its spool keeps its last material and colour: only its
+             * `status` tells it apart (5 = filament in the slot, 4 = none, as seen on a
+             * Kobra X; Tiger Studio reads it the same way). A report without the field
+             * counts as loaded. */
+            const cJSON *st = cJSON_GetObjectItem(s, "status");
+            const bool mounted = !cJSON_IsNumber(st) || st->valueint == 5;
+            const bool has = mounted && cJSON_IsString(type) && type->valuestring[0];
             bx->slot[i].present = has;
             strlcpy(bx->slot[i].material, has ? type->valuestring : "", sizeof bx->slot[i].material);
             bx->slot[i].color = rgb_of(cJSON_GetObjectItem(s, "color"));
