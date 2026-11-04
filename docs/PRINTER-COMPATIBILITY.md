@@ -120,7 +120,9 @@ in this one). "Seen against the mock" is never "works on a real printer".
   chamber`, `temperature_sensor chamber`, or any of those named with
   "chamber"), a light (an LED chain, or an `output_pin` named like a light), a
   Happy Hare MMU (`mmu`) or AFC lanes. Gate and lane colours are read when
-  hexadecimal; a colour name is shown as unknown, as in Studio.
+  hexadecimal; a colour name is shown as unknown, as in Studio. A lane the
+  printer publishes twice, as `AFC_stepper <lane>` and `AFC_lane <lane>` (a CANVAS
+  on an OpenCentauri CC1 does), is one slot, read from `AFC_lane`.
 - **Klipper's time left** is the file's `estimated_time` less the time printed;
   Moonraker has no live figure.
 - **OctoPrint with no printer plugged in** answers, but `/api/printer` says
