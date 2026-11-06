@@ -16,6 +16,11 @@ they were written.
 
 ## [Unreleased]
 
+### Changed
+- **The French says « tu », like Tiger Studio Manager.** The screen, the
+  installer site and the nine brand pages drop « vous » for Studio's own voice:
+  informal, a little offbeat, same facts. No screen string got longer.
+
 ## [2.4.0] - 2026-10-20
 
 
