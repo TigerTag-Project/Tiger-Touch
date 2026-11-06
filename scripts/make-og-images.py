@@ -2,9 +2,9 @@
 """The share pictures of the site: one 1200x630 Open Graph image per page.
 
 What a link to the site shows on Discord, Facebook, X, WhatsApp or LinkedIn:
-"TigerTouch for <Brand> printers", the brand's screen captured on the device
-(assets/devices/brands/), a few of its printers (assets/printers/models/), on
-the site's dark background. The installer page gets the same with the cards.
+"TigerTouch for <Brand> printers", the photo-real device showing one of the
+brand's printers (assets/mockups/angle/), a few of its printers
+(assets/printers/models/), on the site's dark background. The installer page gets the same with the cards.
 
 A tool for the person changing the pictures, not part of the site build (that
 needs no font and no Pillow): the JPEGs are committed in assets/og/ and the site
@@ -52,9 +52,11 @@ def line(draw, x, y, parts, fo):
         x += draw.textlength(t, font=fo)
 
 
-def paste_fit(canvas, path, box):
+def paste_fit(canvas, path, box, trim=False):
     """The picture scaled into box (x, y, w, h), its bottom on the box's."""
     im = Image.open(path).convert("RGBA")
+    if trim:
+        im = im.crop(im.getbbox())
     x, y, w, h = box
     im.thumbnail((w, h), Image.LANCZOS)
     canvas.alpha_composite(im, (x + (w - im.width) // 2, y + h - im.height))
@@ -65,7 +67,7 @@ def card(title2, sub, device, printers, footer, font):
     d = ImageDraw.Draw(im)
     d.rectangle((0, 0, 10, H), fill=ACCENT)
     # The screen on the right, the words on the left.
-    paste_fit(im, device, (650, 12, 530, 568))
+    paste_fit(im, device, (640, 40, 548, 540), trim=True)
     d.text((64, 52), "Tiger", font=font(30), fill=TEXT)
     d.text((64 + d.textlength("Tiger", font=font(30)), 52), "System", font=font(30, False), fill=MUTED)
     l1 = [("Tiger", TEXT), ("Touch", ACCENT), (" for" if title2 else "", TEXT)]
@@ -101,7 +103,7 @@ def card(title2, sub, device, printers, footer, font):
     for p in printers[:4]:
         paste_fit(im, p, (x, 476, 140, 140))
         x += 146
-    # The small print, under the screen's drawing.
+    # The small print, under the screen.
     d.text((915, 606), footer, font=font(20, False), fill=MUTED, anchor="mm")
     return im.convert("RGB")
 
@@ -117,16 +119,20 @@ def main():
     data = json.loads((ROOT / "installer" / "brand-pages.json").read_text())["brands"]
     models = ROOT / "assets" / "printers" / "models"
     footer = "Free and open source  ·  9 brands, one screen"
+    angle = ROOT / "assets" / "mockups" / "angle"
     for b in data:
+        # The photo-real Panda Touch on one of the brand's printers (founder's call:
+        # the share picture shows the real device, never the line drawing).
+        shot = next(angle.glob("panda-touch-angle-printer-%s*.png" % b["shot"].split("-")[0]))
         im = card([(b["name"], ACCENT), (" 3D printers", TEXT)],
                   "Free firmware for the BIGTREETECH Panda Touch and K-Touch",
-                  ROOT / "assets" / "devices" / "brands" / (b["shot"] + ".png"),
+                  shot,
                   [models / m[0] for m in b["lineup"]], footer, font)
         im.save(out / (b["slug"] + ".jpg"), quality=86, optimize=True, progressive=True)
     lead = [models / f for f in ("bambu_lab_x1_carbon.png", "creality_k2_plus.png", "elegoo_centauri_carbon_2.png",
                                  "prusa_core_one.png")]
     home = card([], "Every 3D printer on one screen: free firmware for the BIGTREETECH Panda Touch and K-Touch",
-                ROOT / "assets" / "devices" / "tiger-touch-cards.png", lead,
+                angle / "panda-touch-angle-home-cards.png", lead,
                 "9 brands, one screen  ·  open source", font)
     home.save(out / "home.jpg", quality=86, optimize=True, progressive=True)
     print("og images: %s" % ", ".join(sorted(p.name for p in out.glob("*.jpg"))))
