@@ -52,6 +52,12 @@ the free RAM 10 KB lower than at rest and an update download 19 KB lower (the
 worked example below). The budget went to 128, then to 144 when the printer
 list moved to PSRAM and the device started with 20 KB more (2026-10-15).
 
+The print's picture is one more one-off request (`net/thumb.c`): the account's session, the
+task list and the picture are three TLS requests one after the other, each measured at
+9 to 11 KB of internal RAM at its lowest (a P2S in cloud mode, 2026-11-13), and given back.
+It never runs while less than 50 KB of internal RAM is free (the floor, that cost and a
+margin): the printers come first, and it waits.
+
 **The budget does not stop a crash.** The floor does: if free internal RAM stays
 under 32 KB for three seconds, the last link opened is closed and its printer
 switched off (`links_tick()`). The budget exists to make the choice visible and

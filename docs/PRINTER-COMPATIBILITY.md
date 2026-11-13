@@ -190,6 +190,22 @@ the reference):
   buttons stay dimmed: refreshing the printer in Tiger Studio writes them. An
   answer `code` 1 is accepted; 10001 is a token a newer slicer sign-in revoked.
 
+## The print's picture
+
+The full view shows the picture of the print in progress (`net/thumb.c`,
+[ARCHITECTURE.md](ARCHITECTURE.md), "The print's picture"). Each driver says where it
+is, with an optional `thumb_fetch`.
+
+| Driver | Where the picture is | Status |
+|---|---|---|
+| Bambu Lab, cloud | the account's task list (`GET api.bambulab.<com or cn>/v1/user-service/my/tasks?deviceId=<serial>&limit=5`), the task whose title starts like the printer's file name, its `cover` PNG on the maker's storage, no token. The request carries Tiger Touch's own client name; the OrcaSlicer one gets 403 from Cloudflare | **Seen on a P2S in cloud mode** (2026-11-13): a 512 x 512 PNG of 15.6 KB, fetched in about 4.5 s, read in about 2.3 s |
+| Bambu Lab, LAN | a `.3mf` in the printer's storage (FTPS), or its port 6000 | not written yet |
+| Klipper, Snapmaker | Moonraker, `/server/files/metadata` and the file's thumbnail | not written yet |
+| Creality, OctoPrint, PrusaLink, FlashForge, Elegoo, Anycubic | each one's own route | not written yet |
+
+A print that is not in the list under the printer's file name (one started from the
+printer, not from the slicer) has no picture.
+
 ## When a driver is seen on a machine
 
 This table and the load price in `docs/CONNECTION-BUDGET.md` change together.
