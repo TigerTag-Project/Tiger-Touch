@@ -35,6 +35,10 @@ they were written.
   it, its metadata name the slicer's pictures, and the smallest one at least as big as the screen's
   is fetched from the printer's own file server (plain HTTP, no TLS). Written from Tiger Studio
   Manager's code and **not tried on a Klipper or a Snapmaker**.
+- **The same picture for an OctoPrint and a PrusaLink printer.** An OctoPrint has one only when a
+  thumbnail plugin made it (the file's record then names it); a PrusaLink names its pictures in the job's
+  file. Both are fetched with the same authentication as the driver's own requests (the API key, or
+  Digest for PrusaLink). Written from Tiger Studio Manager's code and **not tried on either**.
 
 ### Changed
 - **The French says « tu », like Tiger Studio Manager.** The screen, the

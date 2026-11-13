@@ -144,6 +144,13 @@ lost both the folder and the extension), its metadata, and the smallest listed p
 least as big as the screen's, from the printer's file server. Plain HTTP on the local network, so
 almost nothing in internal RAM. Written from Tiger Studio Manager's code, not tried on a machine.
 
+An OctoPrint and a PrusaLink are asked the way their own drivers are (`drivers/octoprint_thumb.c`,
+`drivers/prusa_thumb.c`): the job names the file, and the file's record (OctoPrint, its `thumbnail`,
+present only with a thumbnail plugin) or the job itself (PrusaLink, `file.refs`) gives the address of
+the picture. The API key goes in `X-Api-Key`; PrusaLink answers a Digest challenge (the same user and
+password as its driver), which `thumb_http_get_auth` handles by discarding the first, 401 answer. Plain
+HTTP on the local network. Written from Tiger Studio Manager's code, not tried on a machine.
+
 For a Bambu Lab in cloud mode the source is the account's task list: the five latest
 tasks of the printer, the one whose title starts like the file name the printer
 reports, and its `cover`, a PNG on the maker's storage that needs no token. The

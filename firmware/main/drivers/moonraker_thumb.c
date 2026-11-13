@@ -11,25 +11,6 @@
 
 static const char *TAG = "moonraker";
 
-/* Appends `s` percent-encoded to `out` (everything but the unreserved characters, and the '/' when
- * `keep_slash`); the new length. */
-static size_t enc_append(char *out, size_t n, size_t cap, const char *s, bool keep_slash)
-{
-    for (const unsigned char *c = (const unsigned char *)s; *c && n + 4 < cap; c++)
-    {
-        if (isalnum(*c) || strchr("-_.~", *c) || (keep_slash && *c == '/'))
-        {
-            out[n++] = (char)*c;
-        }
-        else
-        {
-            n += (size_t)snprintf(out + n, 4, "%%%02X", *c);
-        }
-    }
-    out[n] = '\0';
-    return n;
-}
-
 /* The slicer's pictures of a G-code file are listed in its metadata (`thumbnails`: width, height and a
  * path relative to the file's own folder) and served with the file under /server/files/gcodes/. Tiger
  * Studio Manager reads them the same way. The file is asked of Moonraker (`print_stats.filename`, with
@@ -83,7 +64,7 @@ bool moonraker_thumb_fetch(const account_printer_t *p, const char *file, uint8_t
 
     /* 2. Its metadata: the pictures it carries. */
     size_t n = (size_t)snprintf(path, sizeof path, "/server/files/metadata?filename=");
-    enc_append(path, n, sizeof path, fname, false);
+    thumb_url_append(path, n, sizeof path, fname, false);
     snprintf(url, sizeof url, "http://%s%s", hp, path);
     if (thumb_http_get_key(url, key, 64 * 1024, &js, &jl) != 200)
     {
@@ -141,7 +122,7 @@ bool moonraker_thumb_fetch(const account_printer_t *p, const char *file, uint8_t
     }
     snprintf(full, sizeof full, "%s%s", dir, best);
     n = (size_t)snprintf(path, sizeof path, "/server/files/gcodes/");
-    enc_append(path, n, sizeof path, full, true);
+    thumb_url_append(path, n, sizeof path, full, true);
     snprintf(url, sizeof url, "http://%s%s", hp, path);
     return thumb_http_get_key(url, key, 256 * 1024, data, len) == 200;
 }

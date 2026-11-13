@@ -53,3 +53,12 @@ int thumb_http_get(const char *url, const char *bearer, bool bbl_identity, size_
 /* The same for a printer on the local network that wants an `X-Api-Key` (OctoPrint, Moonraker) when
  * `api_key` is not empty. */
 int thumb_http_get_key(const char *url, const char *api_key, size_t cap, uint8_t **out, size_t *len);
+
+/* The same for a printer that answers a Digest challenge (PrusaLink): with `user` not empty the request is
+ * authenticated with `user` and `pass`; `api_key`, when not empty, is sent as X-Api-Key as well. */
+int thumb_http_get_auth(const char *url, const char *user, const char *pass, const char *api_key, size_t cap, uint8_t **out,
+                        size_t *len);
+
+/* Appends `s` percent-encoded to `out` at `n` (everything but the unreserved characters, and the '/' when
+ * `keep_slash`), within `cap` bytes; the new length. For the paths of the drivers' picture requests. */
+size_t thumb_url_append(char *out, size_t n, size_t cap, const char *s, bool keep_slash);

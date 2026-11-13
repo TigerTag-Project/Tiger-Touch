@@ -1,5 +1,6 @@
 #include "thumb.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -76,6 +77,17 @@ typedef struct
 static esp_err_t on_data(esp_http_client_event_t *e)
 {
     acc_t *a = e->user_data;
+    if (e->event_id == HTTP_EVENT_HEADERS_SENT)
+    {
+        /* A Digest exchange answers 401 first: only the last answer counts. */
+        a->len = 0;
+        a->over = false;
+        if (a->buf)
+        {
+            a->buf[0] = 0;
+        }
+        return ESP_OK;
+    }
     if (e->event_id != HTTP_EVENT_ON_DATA || e->data_len <= 0 || a->over)
     {
         return ESP_OK;
@@ -107,8 +119,8 @@ static esp_err_t on_data(esp_http_client_event_t *e)
     return ESP_OK;
 }
 
-static int http_get(const char *url, const char *bearer, const char *api_key, bool bbl_identity, size_t cap, uint8_t **out,
-                    size_t *len)
+static int http_get(const char *url, const char *bearer, const char *api_key, const char *user, const char *pass,
+                    bool bbl_identity, size_t cap, uint8_t **out, size_t *len)
 {
     *out = NULL;
     *len = 0;
@@ -122,6 +134,12 @@ static int http_get(const char *url, const char *bearer, const char *api_key, bo
         .buffer_size = 2048,
         .buffer_size_tx = 2048,
     };
+    if (user && user[0])
+    {
+        cfg.username = user;
+        cfg.password = pass ? pass : "";
+        cfg.auth_type = HTTP_AUTH_TYPE_DIGEST;
+    }
     esp_http_client_handle_t c = esp_http_client_init(&cfg);
     if (!c)
     {
@@ -180,12 +198,35 @@ static int http_get(const char *url, const char *bearer, const char *api_key, bo
 
 int thumb_http_get(const char *url, const char *bearer, bool bbl_identity, size_t cap, uint8_t **out, size_t *len)
 {
-    return http_get(url, bearer, NULL, bbl_identity, cap, out, len);
+    return http_get(url, bearer, NULL, NULL, NULL, bbl_identity, cap, out, len);
 }
 
 int thumb_http_get_key(const char *url, const char *api_key, size_t cap, uint8_t **out, size_t *len)
 {
-    return http_get(url, NULL, api_key, false, cap, out, len);
+    return http_get(url, NULL, api_key, NULL, NULL, false, cap, out, len);
+}
+
+int thumb_http_get_auth(const char *url, const char *user, const char *pass, const char *api_key, size_t cap, uint8_t **out,
+                        size_t *len)
+{
+    return http_get(url, NULL, api_key, user, pass, false, cap, out, len);
+}
+
+size_t thumb_url_append(char *out, size_t n, size_t cap, const char *s, bool keep_slash)
+{
+    for (const unsigned char *c = (const unsigned char *)s; *c && n + 4 < cap; c++)
+    {
+        if (isalnum(*c) || strchr("-_.~", *c) || (keep_slash && *c == '/'))
+        {
+            out[n++] = (char)*c;
+        }
+        else
+        {
+            n += (size_t)snprintf(out + n, 4, "%%%02X", *c);
+        }
+    }
+    out[n] = '\0';
+    return n;
 }
 
 /* ---- Decode and shrink -------------------------------------------------- */
