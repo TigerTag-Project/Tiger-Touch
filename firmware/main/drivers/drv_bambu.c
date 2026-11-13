@@ -29,9 +29,19 @@
 #include "freertos/semphr.h"
 #include "mqtt_client.h"
 #include "mqtt_rx.h"
+#include "bambu_lan_thumb.h"
 #include "printer_driver.h"
 
 static const char *TAG = "bambu";
+
+/* The path of the gcode file a LAN printer reports (e.g. "/data/Metadata/plate_1.gcode"): the picture's
+ * folder. The picture service reads it from here, since it has no access to the driver's own state. */
+static struct
+{
+    char sn[40];
+    char gcode[96];
+} s_lan_hint;
+static portMUX_TYPE s_hint_mux = portMUX_INITIALIZER_UNLOCKED;
 
 #define MAX_REPORT (192 * 1024)
 #define ONLINE_WINDOW_US (75LL * 1000 * 1000)
@@ -621,6 +631,14 @@ static void handle_report(bambu_t *b, const char *buf, size_t len)
         total = (int)d;
     if (get_num(buf, "\"mc_remaining_time\"", &d) || get_num(buf, "\"remaining_time\"", &d))
         left = (int)d * 60; /* minutes on the wire */
+    char gp[96];
+    if (b->lan && get_str(buf, "\"gcode_file\"", gp, sizeof gp) && gp[0])
+    {
+        taskENTER_CRITICAL(&s_hint_mux);
+        strlcpy(s_lan_hint.sn, b->sn, sizeof s_lan_hint.sn);
+        strlcpy(s_lan_hint.gcode, gp, sizeof s_lan_hint.gcode);
+        taskEXIT_CRITICAL(&s_hint_mux);
+    }
     if (get_str(buf, "\"subtask_name\"", file, sizeof file) && file[0])
     {
         have_file = true;
@@ -1331,10 +1349,21 @@ static bool bambu_thumb_fetch(const account_printer_t *p, const char *file, uint
 {
     *data = NULL;
     *len = 0;
-    /* In LAN mode the picture is in the printer's own storage (a .3mf over FTPS): not read yet. */
-    if (!p->cloud || !p->sn[0] || !file[0])
+    if (!p->sn[0] || !file[0])
     {
         return false;
+    }
+    if (!p->cloud)
+    {
+        /* In LAN mode: the plate's PNG from the printer's own file service (port 6000). */
+        char gcode[96] = "";
+        taskENTER_CRITICAL(&s_hint_mux);
+        if (strcmp(s_lan_hint.sn, p->sn) == 0)
+        {
+            strlcpy(gcode, s_lan_hint.gcode, sizeof gcode);
+        }
+        taskEXIT_CRITICAL(&s_hint_mux);
+        return bambu_lan_thumb_fetch(p->ip, p->cc, gcode, data, len);
     }
     char user[96], token[1100], region[8];
     if (cloud_bambu_session(user, sizeof user, token, sizeof token, region, sizeof region) != CLOUD_OK)

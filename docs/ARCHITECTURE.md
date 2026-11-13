@@ -138,6 +138,13 @@ A Creality K2 serves the slicer's picture of each file on its web server (port 8
 named like its file, so no request goes to the WebSocket. It is written from Tiger Studio
 Manager's notes and was not tried on a K2.
 
+A Bambu Lab in LAN mode gives its picture through the printer's own file service on port 6000
+(`drivers/bambu_lan_thumb.c`): TLS with the printer's own certificate, login, a fixed JSON setup, then a
+download of the plate's PNG, whose folder is the one of the `gcode_file` the report names (kept by
+`drv_bambu.c` for a LAN printer: the picture service cannot reach the driver's state). Size and MD5 are
+checked. It is one more TLS connection to the printer, of the order of the MQTT one's internal RAM (not
+measured), under the same 50 KB rule. Written after ha-bambulab, not tried on any printer.
+
 A FlashForge gives the address of its picture in the answer the driver already asks every two seconds
 (`POST /detail`, `printFileThumbUrl`, a JPEG), so its source is one request more
 (`drivers/flashforge_thumb.c`). A JPEG is read with the ROM's tjpgd, which shrinks it by 2, 4 or 8 while

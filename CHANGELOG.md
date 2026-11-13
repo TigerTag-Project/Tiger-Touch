@@ -43,6 +43,10 @@ they were written.
   JPEG, in the answer the driver already asks every two seconds. The picture service now reads a JPEG as
   well as a PNG, with the ROM's decoder, which shrinks it while it decodes. Written from Tiger Studio
   Manager's notes and **not tried on a FlashForge**.
+- **The same picture for a Bambu Lab in LAN mode.** The printer's own file service on port 6000 gives the
+  plate's picture, a small PNG, next to the gcode file its report names (not the .3mf, a ZIP of megabytes
+  that Tiger Studio Manager downloads whole). Written after ha-bambulab's client of that service and
+  **not tried on any printer**: whether a model answers on that port is not known.
 
 ### Changed
 - **The French says « tu », like Tiger Studio Manager.** The screen, the
