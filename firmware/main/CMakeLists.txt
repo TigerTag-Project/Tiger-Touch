@@ -9,6 +9,7 @@ idf_component_register(
         "net/cloud.c"
         "net/http_lite.c"
         "net/ota.c"
+        "net/thumb.c"
         "net/lan_mode.c"
         "drivers/drivers.c"
         "drivers/links.c"
