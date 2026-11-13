@@ -26,6 +26,7 @@
 #include "freertos/task.h"
 #include "http_lite.h"
 #include "i18n.h"
+#include "octoprint_thumb.h"
 #include "printer_driver.h"
 
 static const char *TAG = "octoprint";
@@ -337,4 +338,5 @@ const printer_driver_t DRIVER_OCTOPRINT = {
     .stop = octo_stop,
     .snapshot = octo_snapshot,
     .control = octo_control,
+    .thumb_fetch = octoprint_thumb_fetch,
 };
