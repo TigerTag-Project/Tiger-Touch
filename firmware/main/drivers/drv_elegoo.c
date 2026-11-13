@@ -22,13 +22,14 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "mbedtls/base64.h"
 #include "mqtt_client.h"
 #include "mqtt_rx.h"
 #include "printer_driver.h"
 
 static const char *TAG = "elegoo";
 
-#define MAX_MSG (32 * 1024)
+#define MAX_MSG (96 * 1024) /* a picture's answer is a base64 PNG: tens of KB */
 #define POLL_US (5LL * 1000 * 1000)
 #define PING_US (10LL * 1000 * 1000)
 #define CANVAS_US (30LL * 1000 * 1000)
@@ -58,6 +59,8 @@ typedef struct
     int status, sub_status, progress, layer, left_s;
     char pstate[16];
     char file[48];
+    char file_raw[128];  /* print_status.filename as the printer wrote it: the picture's request names it */
+    char thumb_for[48];  /* the name (on the view) the picture being asked for belongs to */
     bool light_on; /* led.status of the live push */
 
     bool canvas;
@@ -172,6 +175,7 @@ static void apply_result(elg_t *c, const cJSON *r)
         if (cJSON_IsString(fn) && fn->valuestring[0])
         {
             const char *name = fn->valuestring;
+            strlcpy(c->file_raw, name, sizeof c->file_raw);
             const char *slash = strrchr(name, '/');
             strlcpy(c->file, slash ? slash + 1 : name, sizeof c->file);
             char *dot = strrchr(c->file, '.');
@@ -191,6 +195,123 @@ static void apply_result(elg_t *c, const cJSON *r)
     xSemaphoreGive(c->lock);
 }
 
+/* ---- The picture of the print --------------------------------------------------
+ *
+ * The CC2 sends it only on its MQTT link: method 1045 with {file_name, storage_media:"local"} is answered
+ * by {method:1045, result:{thumbnail:<base64 PNG>}}, or error_code 1003 while it heats (not there yet),
+ * as Tiger Studio Manager's notes say. The picture service cannot reach this link, so its `thumb_fetch`
+ * here only leaves a request (below) that elg_snapshot picks up and sends, and returns nothing: the service
+ * asks again every 30 s until the answer, decoded here, has been handed to it (thumb_provide). */
+
+static struct
+{
+    char sn[40];
+    char file[48];
+    bool pending;
+} s_req;
+static portMUX_TYPE s_req_mux = portMUX_INITIALIZER_UNLOCKED;
+
+static bool elegoo_thumb_fetch(const account_printer_t *p, const char *file, uint8_t **data, size_t *len)
+{
+    *data = NULL;
+    *len = 0;
+    taskENTER_CRITICAL(&s_req_mux);
+    strlcpy(s_req.sn, p->sn, sizeof s_req.sn);
+    strlcpy(s_req.file, file, sizeof s_req.file);
+    s_req.pending = true;
+    taskEXIT_CRITICAL(&s_req_mux);
+    return false;
+}
+
+/* Sends the picture's request when the service left one for this printer's print in progress. */
+static void ask_picture(elg_t *c)
+{
+    char want[48] = "";
+    taskENTER_CRITICAL(&s_req_mux);
+    const bool mine = s_req.pending && strcmp(s_req.sn, c->sn) == 0;
+    if (mine)
+    {
+        s_req.pending = false;
+        strlcpy(want, s_req.file, sizeof want);
+    }
+    taskEXIT_CRITICAL(&s_req_mux);
+    if (!mine)
+    {
+        return;
+    }
+    char raw[128];
+    xSemaphoreTake(c->lock, portMAX_DELAY);
+    const bool same = c->file_raw[0] && strcmp(want, c->file) == 0; /* the print the view shows */
+    if (same)
+    {
+        strlcpy(raw, c->file_raw, sizeof raw);
+        strlcpy(c->thumb_for, want, sizeof c->thumb_for);
+    }
+    xSemaphoreGive(c->lock);
+    if (!same)
+    {
+        return;
+    }
+    char esc[300], buf[400];
+    size_t n = 0;
+    for (const char *s = raw; *s && n + 3 < sizeof esc; s++)
+    {
+        if (*s == '"' || *s == '\\')
+        {
+            esc[n++] = '\\';
+        }
+        esc[n++] = *s;
+    }
+    esc[n] = '\0';
+    const int bn = snprintf(buf, sizeof buf,
+                            "{\"id\":%u,\"method\":1045,\"params\":{\"file_name\":\"%s\",\"storage_media\":\"local\"}}",
+                            (unsigned)++c->seq, esc);
+    if (bn > 0 && bn < (int)sizeof buf)
+    {
+        esp_mqtt_client_publish(c->mqtt, c->t_request, buf, bn, 0, 0);
+    }
+}
+
+/* The answer to method 1045: the base64 PNG, decoded and handed to the picture service. */
+static void handle_picture(elg_t *c, const cJSON *res)
+{
+    static const char *const KEYS[] = {"thumbnail", "thumbData", "base64", "imageData", "image"};
+    const char *b64 = NULL;
+    for (size_t i = 0; i < sizeof KEYS / sizeof KEYS[0] && !b64; i++)
+    {
+        const cJSON *v = cJSON_GetObjectItem(res, KEYS[i]);
+        b64 = cJSON_IsString(v) && v->valuestring[0] ? v->valuestring : NULL;
+    }
+    if (!b64)
+    {
+        return; /* error_code 1003: not there yet, the service asks again */
+    }
+    if (!strncmp(b64, "data:", 5) && strchr(b64, ','))
+    {
+        b64 = strchr(b64, ',') + 1;
+    }
+    const size_t slen = strlen(b64);
+    size_t olen = 0;
+    mbedtls_base64_decode(NULL, 0, &olen, (const unsigned char *)b64, slen); /* sizes it */
+    uint8_t *png = olen ? heap_caps_malloc(olen, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
+    if (!png)
+    {
+        return;
+    }
+    if (mbedtls_base64_decode(png, olen, &olen, (const unsigned char *)b64, slen) == 0 && olen)
+    {
+        char name[48];
+        xSemaphoreTake(c->lock, portMAX_DELAY);
+        strlcpy(name, c->thumb_for, sizeof name);
+        xSemaphoreGive(c->lock);
+        if (name[0])
+        {
+            thumb_provide(c->sn, name, png, olen);
+        }
+    }
+    heap_caps_free(png);
+}
+
 static void handle_message(elg_t *c, const char *data, size_t len)
 {
     cJSON *root = cJSON_ParseWithLength(data, len);
@@ -199,7 +320,12 @@ static void handle_message(elg_t *c, const char *data, size_t len)
         return;
     }
     const cJSON *res = cJSON_GetObjectItem(root, "result");
-    if (cJSON_IsObject(res))
+    const cJSON *method = cJSON_GetObjectItem(root, "method");
+    if (cJSON_IsObject(res) && cJSON_IsNumber(method) && method->valueint == 1045)
+    {
+        handle_picture(c, res);
+    }
+    else if (cJSON_IsObject(res))
     {
         apply_result(c, res);
     }
@@ -388,6 +514,7 @@ static void elg_snapshot(void *ctx, printer_view_t *v)
             c->last_canvas_us = now;
             send_method(c, 2005, "{}");
         }
+        ask_picture(c);
         if (now - c->last_ping_us > PING_US)
         {
             c->last_ping_us = now;
@@ -469,4 +596,5 @@ const printer_driver_t DRIVER_ELEGOO = {
     .stop = elg_stop,
     .snapshot = elg_snapshot,
     .control = elg_control,
+    .thumb_fetch = elegoo_thumb_fetch,
 };

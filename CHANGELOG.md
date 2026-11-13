@@ -16,6 +16,47 @@ they were written.
 
 ## [Unreleased]
 
+### Added
+- **The print's picture on a printer's full view, for a Bambu Lab in cloud mode.**
+  A square of 88 pixels sits right of the times, under the layer count, with the model
+  as the slicer sent it. It is fetched as soon as the print starts, so the full view
+  finds it ready, and kept while it is the same file. A print that does not appear in
+  the account's task list under the printer's file name has no picture, and the screen
+  is then as it was. One service does the work for every brand (`net/thumb.c`: fetch,
+  decode, shrink, hand the screen an image); a driver only says where the picture is,
+  so the other brands are a few lines each. Tried on a P2S in cloud mode; the other
+  brands are not written yet, and a Bambu in LAN mode (its file is on the printer) is
+  not either.
+- **The same picture for a Creality K2.** The K2's web server serves the slicer's small picture of
+  every file; the picture of the print in progress is the one named like its file. Written from
+  Tiger Studio Manager's protocol notes and **not tried on a K2**. A file whose name is longer
+  than the view's 47 characters has no picture.
+- **The same picture for a Klipper and a Snapmaker.** Both run Moonraker: the printing file is asked of
+  it, its metadata name the slicer's pictures, and the smallest one at least as big as the screen's
+  is fetched from the printer's own file server (plain HTTP, no TLS). Written from Tiger Studio
+  Manager's code and **not tried on a Klipper or a Snapmaker**.
+- **The same picture for an OctoPrint and a PrusaLink printer.** An OctoPrint has one only when a
+  thumbnail plugin made it (the file's record then names it); a PrusaLink names its pictures in the job's
+  file. Both are fetched with the same authentication as the driver's own requests (the API key, or
+  Digest for PrusaLink). Written from Tiger Studio Manager's code and **not tried on either**.
+- **The same picture for a FlashForge, and JPEG pictures.** A FlashForge names the slicer's picture, a
+  JPEG, in the answer the driver already asks every two seconds. The picture service now reads a JPEG as
+  well as a PNG, with the ROM's decoder, which shrinks it while it decodes. Written from Tiger Studio
+  Manager's notes and **not tried on a FlashForge**.
+- **The same picture for a Bambu Lab in LAN mode.** The printer's own file service on port 6000 gives the
+  plate's picture, a small PNG, next to the gcode file its report names (not the .3mf, a ZIP of megabytes
+  that Tiger Studio Manager downloads whole). Written after ha-bambulab's client of that service and
+  **not tried on any printer**: whether a model answers on that port is not known.
+- **The same picture for an Anycubic in cloud mode.** The account's project list names, for the print
+  in progress, a signed address of its picture, asked as Tiger Studio Manager asks it, with the same
+  signature as the cloud orders. A finished print has no picture after a restart. Written from Tiger Studio
+  Manager's code and **not tried on an Anycubic**.
+- **The same picture for an Elegoo Centauri Carbon 2.** The CC2 sends it only on its MQTT link (method 1045,
+  a base64 PNG in the answer), so its driver asks for it and hands the decoded picture to the picture
+  service (`thumb_provide`), which reads and shrinks it on its own task; it asks again every 30 s while the
+  printer says it is not there yet (it heats first). Written from Tiger Studio Manager's notes and **not tried on
+  a CC2**. The Centauri Carbon 1 (SDCP) has no known route.
+
 ### Changed
 - **The French says « tu », like Tiger Studio Manager.** The screen, the
   installer site and the nine brand pages drop « vous » for Studio's own voice:

@@ -190,6 +190,29 @@ the reference):
   buttons stay dimmed: refreshing the printer in Tiger Studio writes them. An
   answer `code` 1 is accepted; 10001 is a token a newer slicer sign-in revoked.
 
+## The print's picture
+
+The full view shows the picture of the print in progress (`net/thumb.c`,
+[ARCHITECTURE.md](ARCHITECTURE.md), "The print's picture"). Each driver says where it
+is, with an optional `thumb_fetch`.
+
+| Driver | Where the picture is | Status |
+|---|---|---|
+| Bambu Lab, cloud | the account's task list (`GET api.bambulab.<com or cn>/v1/user-service/my/tasks?deviceId=<serial>&limit=5`), the task whose title starts like the printer's file name, its `cover` PNG on the maker's storage, no token. The request carries Tiger Touch's own client name; the OrcaSlicer one gets 403 from Cloudflare | **Seen on a P2S in cloud mode** (2026-11-13): a 512 x 512 PNG of 15.6 KB, fetched in about 4.5 s, read in about 2.3 s |
+| Creality (K2) | its web server, `GET http://<ip>/downloads/humbnail/<file without .gcode>.png` (port 80; "humbnail" is the firmware's spelling; the name is Tiger Studio Manager's notes' rule, the file list would give it exactly) | **Written, not tried on a K2** (2026-11-13); a file name longer than 47 characters has no picture |
+| Bambu Lab, LAN | the printer's own file service, TLS on port 6000 (as ha-bambulab's `Tcp6000MediaSource`): login with `bblp` and the access code, a fixed JSON setup, then a download of `<folder of gcode_file>/plate_<N>.png` (e.g. `/data/Metadata/plate_1.png`), N read from `plate_N.gcode`; size and MD5 checked. Not the `.3mf` over FTPS (a ZIP of megabytes, which Tiger Studio Manager downloads whole) | **Written, not tried on any printer** (2026-11-13): which models answer on port 6000 is not known (ha-bambulab probes it each time) |
+| Klipper, Snapmaker | Moonraker on the printer's port (7125 unless `ip` says otherwise), plain HTTP, `X-Api-Key` when the account has one: `GET /printer/objects/query?print_stats=filename` for the printing file with its folder, `GET /server/files/metadata?filename=` for its `thumbnails` (width, height, `relative_path`), then `GET /server/files/gcodes/<folder>/<relative_path>`; the smallest picture at least 88 px wide, else the largest | **Written, not tried on a machine** (2026-11-13), from Tiger Studio Manager's code |
+| OctoPrint | its REST API on the printer's address, `X-Api-Key`: `GET /api/job` for the printing file (`job.file.path`, local origin only), `GET /api/files/local/<path>` for its `thumbnail` (set only when a thumbnail plugin made one), then `GET` of that address | **Written, not tried on a machine** (2026-11-13), from Tiger Studio Manager's code; no plugin, no picture |
+| PrusaLink | `GET /api/v1/job`: `file.display_name` and `file.refs.thumbnail` (else `icon`), then `GET` of that path; Digest with the account's user and password, or `X-Api-Key` when it holds a legacy key (as the driver's own requests) | **Written, not tried on a machine** (2026-11-13), from Tiger Studio Manager's code |
+| FlashForge | the answer of `POST :8898/detail` (the driver's own request): `printFileName` must match, `printFileThumbUrl` is a full address of the printer's file server, a JPEG in Tiger Studio Manager's notes; only its path is used, on the account's address, with no authentication | **Written, not tried on a machine** (2026-11-13), and the JPEG reader (the ROM's tjpgd) has not been tried on any picture yet |
+| Anycubic, cloud | `GET .../work/project/getProjects?page=1&limit=5`, signed as the cloud orders are (md5 of the app id, time, version, secret, a nonce and the app id, with the workbench token), the project of this printer (`printer_id`, its numeric account id) with `print_status` 1, then its `img`, a signed address fetched with no header of ours | **Written, not tried on an Anycubic** (2026-11-13), from Tiger Studio Manager's code; only the print in progress has a picture |
+| Anycubic, LAN | none found | not written |
+| Elegoo CC2 | method 1045 over the driver's own MQTT link, `{file_name, storage_media:"local"}` (`file_name` is `print_status.filename` as the printer wrote it); the answer carries the PNG as base64 (`result.thumbnail`), or `error_code` 1003 while it heats; the driver decodes it and hands it to the picture service (`thumb_provide`) | **Written, not tried on a CC2** (2026-11-13), from Tiger Studio Manager's notes; the service asks again every 30 s up to 8 times, so a print that heats longer than about 4 minutes may get no picture |
+| Elegoo CC1 (SDCP) | no route known | not written |
+
+A print that is not in the list under the printer's file name (one started from the
+printer, not from the slicer) has no picture.
+
 ## When a driver is seen on a machine
 
 This table and the load price in `docs/CONNECTION-BUDGET.md` change together.

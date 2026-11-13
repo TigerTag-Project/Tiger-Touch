@@ -108,6 +108,83 @@ the United States by New York, Russia by Moscow. That is a choice; a person
 elsewhere in such a country sees the end of a print in that zone. The device has no
 setting for it yet.
 
+## The print's picture
+
+The full view shows the picture of the print in progress, right of the times
+(`ui_dashboard.c`). One service does the work for every brand (`net/thumb.c`); a
+driver only says where the picture is, with an optional `thumb_fetch` in
+`printer_driver.h`. The feed task tells the service once a second which print is
+worth a picture (the printer shown, printing, paused or done, and a driver with a
+`thumb_fetch`); the service's own task, in PSRAM, does the rest:
+
+1. **Fetch**: the driver's function returns the picture as the maker serves it (a PNG).
+2. **Read line by line**: the ROM's `tinfl` inflates it in 32 KB pieces, each line is
+   unfiltered and added to the output pixel it falls in (a box average, the
+   transparency laid over the tile's colour), so about 80 KB of PSRAM in small blocks
+   is all that is held. Decoding a 512 x 512 picture whole asks for two blocks of a
+   megabyte and failed on the second try, when the PSRAM was too fragmented to give
+   them (2026-11-13); the whole decode stays as the fallback for 16-bit and
+   interlaced PNGs.
+3. **Show**: an 88 x 88 RGB565 image, double-buffered; the dashboard reads it under the
+   LVGL lock and a drop of the old one is done under that same lock.
+
+It is fetched as soon as the print starts, whichever view is on show, and kept while
+it is the same printer and file, so going back and forth costs nothing. It waits while
+the internal RAM is under 50 KB, so the printers come first. Without a picture the
+screen is as it was.
+
+A Creality K2 serves the slicer's picture of each file on its web server (port 80,
+`/downloads/humbnail/<file>.png`, the firmware's own spelling); the print's picture is the one
+named like its file, so no request goes to the WebSocket. It is written from Tiger Studio
+Manager's notes and was not tried on a K2.
+
+An Elegoo CC2 only answers on its MQTT link, which belongs to its driver, so its source is turned around
+(`drv_elegoo.c`): `thumb_fetch` leaves a request, `elg_snapshot` sends it as method 1045 once a second
+later, and the answer's base64 PNG is decoded by the driver and handed to the service with `thumb_provide`,
+which keeps it only when it is for the print now wanted and reads it on its own task (never on the MQTT
+task). The service's usual retry, every 30 s, asks again while the printer says it is not there yet.
+Written from Tiger Studio Manager's notes, not tried on a CC2.
+
+An Anycubic in cloud mode is asked through the account's project list (`anycubic_thumb_fetch` in `drv_anycubic.c`),
+signed as its cloud orders are: the project of the printer that is running names a signed address of its
+picture, which is fetched with no header of ours. `thumb_http_get_headers` carries the signed headers. Only
+the print in progress has one. Written from Tiger Studio Manager's code, not tried on an Anycubic.
+
+A Bambu Lab in LAN mode gives its picture through the printer's own file service on port 6000
+(`drivers/bambu_lan_thumb.c`): TLS with the printer's own certificate, login, a fixed JSON setup, then a
+download of the plate's PNG, whose folder is the one of the `gcode_file` the report names (kept by
+`drv_bambu.c` for a LAN printer: the picture service cannot reach the driver's state). Size and MD5 are
+checked. It is one more TLS connection to the printer, of the order of the MQTT one's internal RAM (not
+measured), under the same 50 KB rule. Written after ha-bambulab, not tried on any printer.
+
+A FlashForge gives the address of its picture in the answer the driver already asks every two seconds
+(`POST /detail`, `printFileThumbUrl`, a JPEG), so its source is one request more
+(`drivers/flashforge_thumb.c`). A JPEG is read with the ROM's tjpgd, which shrinks it by 2, 4 or 8 while
+it decodes, as far as it stays at least as big as the screen's picture; at most about 90 KB of RGB is held,
+then averaged down to the tile as a PNG is. tjpgd takes baseline JPEGs only: a progressive one has no
+picture. Written from Tiger Studio Manager's notes, not tried on a machine.
+
+A Klipper or a Snapmaker is asked through Moonraker (`drivers/moonraker_thumb.c`, one function for
+both): the file that is printing (`print_stats.filename`, with its folder: the view's name has
+lost both the folder and the extension), its metadata, and the smallest listed picture that is at
+least as big as the screen's, from the printer's file server. Plain HTTP on the local network, so
+almost nothing in internal RAM. Written from Tiger Studio Manager's code, not tried on a machine.
+
+An OctoPrint and a PrusaLink are asked the way their own drivers are (`drivers/octoprint_thumb.c`,
+`drivers/prusa_thumb.c`): the job names the file, and the file's record (OctoPrint, its `thumbnail`,
+present only with a thumbnail plugin) or the job itself (PrusaLink, `file.refs`) gives the address of
+the picture. The API key goes in `X-Api-Key`; PrusaLink answers a Digest challenge (the same user and
+password as its driver), which `thumb_http_get_auth` handles by discarding the first, 401 answer. Plain
+HTTP on the local network. Written from Tiger Studio Manager's code, not tried on a machine.
+
+For a Bambu Lab in cloud mode the source is the account's task list: the five latest
+tasks of the printer, the one whose title starts like the file name the printer
+reports, and its `cover`, a PNG on the maker's storage that needs no token. The
+request carries Tiger Touch's own client name: Bambu's edge answers the borrowed
+OrcaSlicer name with 403 (Cloudflare, since 2026-11-12) and asks third parties to send
+their own. The task list is read as text, not as a cJSON tree, which is hundreds of
+small blocks in internal RAM.
+
 ## Account
 
 Sign-in is an e-mail and password, or Google through a QR approved on the phone

@@ -24,6 +24,7 @@
 #include "freertos/task.h"
 #include "http_lite.h"
 #include "i18n.h"
+#include "flashforge_thumb.h"
 #include "printer_driver.h"
 
 static const char *TAG = "flashforge";
@@ -453,4 +454,5 @@ const printer_driver_t DRIVER_FLASHFORGE = {
     .stop = ff_stop,
     .snapshot = ff_snapshot,
     .control = ff_control,
+    .thumb_fetch = flashforge_thumb_fetch,
 };

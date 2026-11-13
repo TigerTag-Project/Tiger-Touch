@@ -44,6 +44,7 @@
 #include "freertos/semphr.h"
 #include "cloud.h"
 #include "i18n.h"
+#include "json_scan.h"
 #include "mbedtls/base64.h"
 #include "mbedtls/pk.h"
 #include "mbedtls/ssl.h"
@@ -1432,6 +1433,112 @@ static void acu_snapshot(void *ctx, printer_view_t *v)
     xSemaphoreGive(c->lock);
 }
 
+/* ---- The picture of the print, through the maker's cloud -----------------------------
+ *
+ * As Tiger Studio Manager does (main.js, anycubic:cloud-printer-info): the account's projects
+ * (`GET .../work/project/getProjects?page=1&limit=5`, signed like the orders above) name, for the
+ * print in progress (`print_status` 1) of this printer, a signed address of its picture (`img`),
+ * fetched with no header of ours. Only the print in progress has one: a finished print has no
+ * picture after a restart, the one shown while it ran is kept for the same file. */
+
+#define ACU_PROJECTS "https://cloud-universe.anycubic.com/p/p/workbench/api/work/project/getProjects?page=1&limit=5"
+
+/* The value of `key` in [s, e) as text, whether the answer wrote it as a string or as a number. */
+static bool acu_field_text(const char *s, const char *e, const char *key, char *out, size_t cap)
+{
+    double d;
+    if (json_scan_field_str(s, e, key, out, cap))
+    {
+        return true;
+    }
+    if (json_scan_field_num(s, e, key, &d))
+    {
+        snprintf(out, cap, "%.0f", d);
+        return true;
+    }
+    return false;
+}
+
+static bool anycubic_thumb_fetch(const account_printer_t *p, const char *file, uint8_t **data, size_t *len)
+{
+    (void)file; /* the print in progress is the one the project list says is running */
+    *data = NULL;
+    *len = 0;
+    /* In LAN mode the printer has no route for it (none found). The cloud id of the printer is its
+     * numeric account id, as the driver reads it. */
+    if (!p->cloud || !p->sn[0] || strspn(p->sn, "0123456789") != strlen(p->sn))
+    {
+        return false;
+    }
+    cloud_acu_signer_t s;
+    if (!cloud_anycubic_signer(&s))
+    {
+        return false;
+    }
+    char ts[24], nonce[37], sig[33];
+    snprintf(ts, sizeof ts, "%lld", (long long)time(NULL) * 1000LL);
+    uuid4(nonce);
+    const char *parts[] = {s.app_id, ts, s.app_ver, s.app_secret, nonce, s.app_id}; /* as send_order signs */
+    md5_context_t m;
+    uint8_t d[ESP_ROM_MD5_DIGEST_LEN];
+    esp_rom_md5_init(&m);
+    for (int i = 0; i < 6; i++)
+    {
+        esp_rom_md5_update(&m, parts[i], strlen(parts[i]));
+    }
+    esp_rom_md5_final(d, &m);
+    for (int i = 0; i < ESP_ROM_MD5_DIGEST_LEN; i++)
+    {
+        sprintf(sig + 2 * i, "%02x", d[i]);
+    }
+    const thumb_hdr_t hdrs[] = {{"Xx-Device-Type", "pcf"}, {"Xx-Is-Cn", "1"},         {"Xx-Nonce", nonce},
+                                {"Xx-Signature", sig},     {"Xx-Timestamp", ts},       {"Xx-Version", s.app_ver},
+                                {"XX-LANGUAGE", "US"},     {"XX-Token", s.token}};
+    uint8_t *js = NULL;
+    size_t jl = 0;
+    const int st = thumb_http_get_headers(ACU_PROJECTS, hdrs, (int)(sizeof hdrs / sizeof hdrs[0]), 64 * 1024, &js, &jl);
+    memset(sig, 0, sizeof sig);
+    cloud_anycubic_signer_free(&s);
+    if (st != 200)
+    {
+        ESP_LOGW(TAG, "project list: HTTP %d", st);
+        return false;
+    }
+    char img[600] = "";
+    const char *da = strstr((const char *)js, "\"data\"");
+    const char *q = da ? strchr(da, '[') : NULL;
+    for (q = q ? q + 1 : NULL; q && (q = strchr(q, '{'));)
+    {
+        const char *e = json_scan_obj_end(q);
+        if (!e)
+        {
+            break;
+        }
+        char pid[24], status[8], im[600];
+        if (acu_field_text(q, e, "printer_id", pid, sizeof pid) && strcmp(pid, p->sn) == 0 &&
+            acu_field_text(q, e, "print_status", status, sizeof status) && strcmp(status, "1") == 0 &&
+            json_scan_field_str(q, e, "img", im, sizeof im) && im[0])
+        {
+            strlcpy(img, im, sizeof img);
+            break;
+        }
+        q = e;
+    }
+    heap_caps_free(js);
+    if (!img[0])
+    {
+        ESP_LOGI(TAG, "no running project with a picture in the list");
+        return false;
+    }
+    const int cs = thumb_http_get(img, NULL, false, 256 * 1024, data, len);
+    if (cs != 200)
+    {
+        ESP_LOGW(TAG, "picture: HTTP %d", cs);
+        return false;
+    }
+    return true;
+}
+
 const printer_driver_t DRIVER_ANYCUBIC = {
     .brand = "anycubic",
     .support = acu_support,
@@ -1439,4 +1546,5 @@ const printer_driver_t DRIVER_ANYCUBIC = {
     .stop = acu_stop,
     .snapshot = acu_snapshot,
     .control = acu_control,
+    .thumb_fetch = anycubic_thumb_fetch,
 };
