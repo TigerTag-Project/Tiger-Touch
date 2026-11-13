@@ -278,6 +278,9 @@ void ui_dashboard_create(lv_obj_t *parent)
     s_file = mk_label(card, &font_ui_20, C_TEXT, 20, 210, "--");
     lv_obj_set_width(s_file, 480);
     lv_label_set_long_mode(s_file, LV_LABEL_LONG_DOT);
+    /* One line: without a height, LONG_DOT wraps a long name onto the times under it, and all the
+     * sooner as the picture narrows the label (ui_dashboard_update). */
+    lv_obj_set_height(s_file, lv_font_get_line_height(&font_ui_20));
     /* Right of the times, under the layer count; shown only while there is a picture to wait for or to show. */
     s_thumb_box = lv_obj_create(card);
     lv_obj_set_pos(s_thumb_box, THUMB_X, THUMB_Y);
