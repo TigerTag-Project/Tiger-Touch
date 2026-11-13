@@ -36,6 +36,11 @@ typedef bool (*thumb_fetch_fn)(const account_printer_t *p, const char *file, uin
  * near its floor. */
 void thumb_want(const account_printer_t *p, thumb_fetch_fn fetch, const char *file);
 
+/* A picture a driver received on its own connection (an Elegoo's MQTT answer) and hands to the service: kept
+ * only when it is for the print now wanted (`sn` the printer's serial, `file` the name the view shows), and
+ * read on the service's task. The driver's own `thumb_fetch` asks the driver for it and gives nothing back. */
+void thumb_provide(const char *sn, const char *file, const uint8_t *data, size_t len);
+
 /* For the screen, under the LVGL lock. `*img` is valid while the state is READY;
  * `*version` changes when it is a new picture. */
 thumb_state_t thumb_get(const lv_image_dsc_t **img, uint32_t *version);

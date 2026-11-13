@@ -54,6 +54,9 @@ static struct
     int active;       /* -1 when none */
     uint32_t version;
     bool drop; /* the frames are stale: the screen's next look frees them (under the LVGL lock) */
+    uint8_t *push; /* a picture a driver handed over (thumb_provide), waiting to be read */
+    size_t push_len;
+    uint32_t push_gen;
 } S EXT_RAM_BSS_ATTR = {.active = -1};
 
 static void free_frames(void)
@@ -795,6 +798,35 @@ static void worker(void *arg)
     {
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(2000));
 
+        /* A picture a driver handed over: read here, not on the driver's own task. */
+        uint8_t *blob = NULL;
+        size_t blen = 0;
+        uint32_t bgen = 0;
+        xSemaphoreTake(S.lock, portMAX_DELAY);
+        if (S.push)
+        {
+            blob = S.push;
+            blen = S.push_len;
+            bgen = S.push_gen;
+            S.push = NULL;
+        }
+        xSemaphoreGive(S.lock);
+        if (blob)
+        {
+            uint16_t *bpx = shrink(blob, blen);
+            heap_caps_free(blob);
+            xSemaphoreTake(S.lock, portMAX_DELAY);
+            if (bpx && bgen == S.gen && S.want && S.state != THUMB_READY)
+            {
+                install(bpx);
+            }
+            else
+            {
+                heap_caps_free(bpx);
+            }
+            xSemaphoreGive(S.lock);
+        }
+
         account_printer_t *pr = heap_caps_malloc(sizeof *pr, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         if (!pr)
         {
@@ -868,6 +900,8 @@ void thumb_want(const account_printer_t *p, thumb_fetch_fn fetch, const char *fi
             S.gen++;
             S.state = THUMB_NONE;
             S.drop = true;
+            heap_caps_free(S.push);
+            S.push = NULL;
         }
     }
     else if (!S.want || strcmp(S.pr.id, p->id) != 0 || strcmp(S.file, file) != 0)
@@ -881,6 +915,8 @@ void thumb_want(const account_printer_t *p, thumb_fetch_fn fetch, const char *fi
         S.tries = 0;
         S.next_try_us = 0;
         S.drop = true; /* the picture of the previous print goes */
+        heap_caps_free(S.push);
+        S.push = NULL;
     }
     const bool start = want && !S.task;
     xSemaphoreGive(S.lock);
@@ -894,6 +930,38 @@ void thumb_want(const account_printer_t *p, thumb_fetch_fn fetch, const char *fi
         }
     }
     if (want && S.task)
+    {
+        xTaskNotifyGive(S.task);
+    }
+}
+
+void thumb_provide(const char *sn, const char *file, const uint8_t *data, size_t len)
+{
+    if (!S.lock || !data || len == 0 || len > 256 * 1024)
+    {
+        return;
+    }
+    uint8_t *copy = heap_caps_malloc(len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!copy)
+    {
+        return;
+    }
+    memcpy(copy, data, len);
+    xSemaphoreTake(S.lock, portMAX_DELAY);
+    const bool mine = S.want && S.state != THUMB_READY && strcmp(S.pr.sn, sn) == 0 && strcmp(S.file, file) == 0;
+    if (mine)
+    {
+        heap_caps_free(S.push);
+        S.push = copy;
+        S.push_len = len;
+        S.push_gen = S.gen;
+    }
+    xSemaphoreGive(S.lock);
+    if (!mine)
+    {
+        heap_caps_free(copy);
+    }
+    else if (S.task)
     {
         xTaskNotifyGive(S.task);
     }

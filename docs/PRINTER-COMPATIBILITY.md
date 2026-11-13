@@ -207,7 +207,8 @@ is, with an optional `thumb_fetch`.
 | FlashForge | the answer of `POST :8898/detail` (the driver's own request): `printFileName` must match, `printFileThumbUrl` is a full address of the printer's file server, a JPEG in Tiger Studio Manager's notes; only its path is used, on the account's address, with no authentication | **Written, not tried on a machine** (2026-11-13), and the JPEG reader (the ROM's tjpgd) has not been tried on any picture yet |
 | Anycubic, cloud | `GET .../work/project/getProjects?page=1&limit=5`, signed as the cloud orders are (md5 of the app id, time, version, secret, a nonce and the app id, with the workbench token), the project of this printer (`printer_id`, its numeric account id) with `print_status` 1, then its `img`, a signed address fetched with no header of ours | **Written, not tried on an Anycubic** (2026-11-13), from Tiger Studio Manager's code; only the print in progress has a picture |
 | Anycubic, LAN | none found | not written |
-| Elegoo | CC2: method 1045 over MQTT, the picture in the answer as base64 (needs the picture service to be handed it by the driver); CC1 (SDCP): no route known | not written yet |
+| Elegoo CC2 | method 1045 over the driver's own MQTT link, `{file_name, storage_media:"local"}` (`file_name` is `print_status.filename` as the printer wrote it); the answer carries the PNG as base64 (`result.thumbnail`), or `error_code` 1003 while it heats; the driver decodes it and hands it to the picture service (`thumb_provide`) | **Written, not tried on a CC2** (2026-11-13), from Tiger Studio Manager's notes; the service asks again every 30 s up to 8 times, so a print that heats longer than about 4 minutes may get no picture |
+| Elegoo CC1 (SDCP) | no route known | not written |
 
 A print that is not in the list under the printer's file name (one started from the
 printer, not from the slicer) has no picture.

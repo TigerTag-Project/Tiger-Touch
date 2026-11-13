@@ -138,6 +138,13 @@ A Creality K2 serves the slicer's picture of each file on its web server (port 8
 named like its file, so no request goes to the WebSocket. It is written from Tiger Studio
 Manager's notes and was not tried on a K2.
 
+An Elegoo CC2 only answers on its MQTT link, which belongs to its driver, so its source is turned around
+(`drv_elegoo.c`): `thumb_fetch` leaves a request, `elg_snapshot` sends it as method 1045 once a second
+later, and the answer's base64 PNG is decoded by the driver and handed to the service with `thumb_provide`,
+which keeps it only when it is for the print now wanted and reads it on its own task (never on the MQTT
+task). The service's usual retry, every 30 s, asks again while the printer says it is not there yet.
+Written from Tiger Studio Manager's notes, not tried on a CC2.
+
 An Anycubic in cloud mode is asked through the account's project list (`anycubic_thumb_fetch` in `drv_anycubic.c`),
 signed as its cloud orders are: the project of the printer that is running names a signed address of its
 picture, which is fetched with no header of ours. `thumb_http_get_headers` carries the signed headers. Only

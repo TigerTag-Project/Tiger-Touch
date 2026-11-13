@@ -51,6 +51,11 @@ they were written.
   in progress, a signed address of its picture, asked as Tiger Studio Manager asks it, with the same
   signature as the cloud orders. A finished print has no picture after a restart. Written from Tiger Studio
   Manager's code and **not tried on an Anycubic**.
+- **The same picture for an Elegoo Centauri Carbon 2.** The CC2 sends it only on its MQTT link (method 1045,
+  a base64 PNG in the answer), so its driver asks for it and hands the decoded picture to the picture
+  service (`thumb_provide`), which reads and shrinks it on its own task; it asks again every 30 s while the
+  printer says it is not there yet (it heats first). Written from Tiger Studio Manager's notes and **not tried on
+  a CC2**. The Centauri Carbon 1 (SDCP) has no known route.
 
 ### Changed
 - **The French says « tu », like Tiger Studio Manager.** The screen, the
