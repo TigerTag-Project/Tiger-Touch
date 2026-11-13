@@ -28,6 +28,7 @@
 #include "i18n.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "moonraker_thumb.h"
 #include "printer_driver.h"
 
 static const char *TAG = "snapmaker";
@@ -518,4 +519,5 @@ const printer_driver_t DRIVER_SNAPMAKER = {
     .stop = snap_stop,
     .snapshot = snap_snapshot,
     .control = snap_control,
+    .thumb_fetch = moonraker_thumb_fetch,
 };

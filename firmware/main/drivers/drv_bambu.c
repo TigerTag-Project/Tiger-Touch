@@ -24,6 +24,7 @@
 #include "esp_random.h"
 #include "esp_system.h"
 #include "esp_timer.h"
+#include "json_scan.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "mqtt_client.h"
@@ -1315,6 +1316,81 @@ static void bambu_snapshot(void *ctx, printer_view_t *v)
     xSemaphoreGive(b->lock);
 }
 
+/* ---- The picture of the print, through the maker's cloud ----------------------
+ *
+ * The account's task list names every print and carries, for each, the address of
+ * its picture (`cover`, a PNG on the maker's storage, fetched without a token).
+ * The print in progress is the task whose title is the file name the printer
+ * reports. Checked on a P2S in cloud mode (2026-11-13): the list answers 200 to
+ * a client with its own name and 403 (Cloudflare) to the OrcaSlicer one. The
+ * list is read with `limit=5`, about 24 KB instead of 100 KB for twenty tasks.
+ * It is read as text, not as a cJSON tree: a tree is hundreds of small blocks,
+ * and those land in internal RAM. */
+
+static bool bambu_thumb_fetch(const account_printer_t *p, const char *file, uint8_t **data, size_t *len)
+{
+    *data = NULL;
+    *len = 0;
+    /* In LAN mode the picture is in the printer's own storage (a .3mf over FTPS): not read yet. */
+    if (!p->cloud || !p->sn[0] || !file[0])
+    {
+        return false;
+    }
+    char user[96], token[1100], region[8];
+    if (cloud_bambu_session(user, sizeof user, token, sizeof token, region, sizeof region) != CLOUD_OK)
+    {
+        memset(token, 0, sizeof token);
+        return false;
+    }
+    char url[200];
+    snprintf(url, sizeof url, "https://api.bambulab.%s/v1/user-service/my/tasks?deviceId=%s&limit=5",
+             strcmp(region, "cn") == 0 ? "cn" : "com", p->sn);
+    uint8_t *js = NULL;
+    size_t jl = 0;
+    const int st = thumb_http_get(url, token, true, 128 * 1024, &js, &jl);
+    memset(token, 0, sizeof token);
+    if (st != 200)
+    {
+        ESP_LOGW(TAG, "task list: HTTP %d", st);
+        return false;
+    }
+    char cover[640] = "";
+    const char *hits = strstr((const char *)js, "\"hits\"");
+    const char *q = hits ? strchr(hits, '[') : NULL;
+    const size_t flen = strlen(file);
+    /* `file` is the name cut to the view's width: a longer title still starts with it. */
+    for (q = q ? q + 1 : NULL; q && (q = strchr(q, '{'));)
+    {
+        const char *e = json_scan_obj_end(q);
+        if (!e)
+        {
+            break;
+        }
+        char title[96], dev[48], cv[640];
+        const bool mine = !json_scan_field_str(q, e, "deviceId", dev, sizeof dev) || strcmp(dev, p->sn) == 0;
+        if (mine && json_scan_field_str(q, e, "title", title, sizeof title) && strncmp(title, file, flen) == 0 &&
+            json_scan_field_str(q, e, "cover", cv, sizeof cv) && cv[0])
+        {
+            strlcpy(cover, cv, sizeof cover);
+            break;
+        }
+        q = e;
+    }
+    heap_caps_free(js);
+    if (!cover[0])
+    {
+        ESP_LOGI(TAG, "no task of the list is titled like the print");
+        return false;
+    }
+    const int cs = thumb_http_get(cover, NULL, false, 2 * 1024 * 1024, data, len);
+    if (cs != 200)
+    {
+        ESP_LOGW(TAG, "cover: HTTP %d", cs);
+        return false;
+    }
+    return true;
+}
+
 const printer_driver_t DRIVER_BAMBU = {
     .brand = "bambulab",
     .support = bambu_support,
@@ -1322,4 +1398,5 @@ const printer_driver_t DRIVER_BAMBU = {
     .stop = bambu_stop,
     .snapshot = bambu_snapshot,
     .control = bambu_control,
+    .thumb_fetch = bambu_thumb_fetch,
 };

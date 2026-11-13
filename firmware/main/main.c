@@ -24,6 +24,7 @@
 #include "lvgl.h"
 #include "pandatouch_display.h"
 #include "settings.h"
+#include "thumb.h"
 #include "tz.h"
 #include "ui_cards.h"
 #include "ui_dashboard.h"
@@ -517,6 +518,15 @@ static void feed_task(void *arg)
             }
         }
         strlcpy(v.brand, p ? p->brand : "", sizeof v.brand);
+        {
+            const printer_driver_t *tdrv = p ? drivers_for(p) : NULL;
+            const bool printing = v.online && (v.state == PV_PRINTING || v.state == PV_PAUSED || v.state == PV_DONE);
+            /* Fetched as soon as the print runs, so the full view finds it ready, and kept while
+             * it is the same file, so going back and forth costs nothing. */
+            const bool want = printing && tdrv && tdrv->thumb_fetch;
+            /* Copies what it needs: `p` is only valid under the lock. */
+            thumb_want(want ? p : NULL, want ? tdrv->thumb_fetch : NULL, want ? v.file : "");
+        }
         links_unlock();
 
         if (settled)

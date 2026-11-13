@@ -16,6 +16,30 @@ they were written.
 
 ## [Unreleased]
 
+### Added
+- **The print's picture on a printer's full view, for a Bambu Lab in cloud mode.**
+  A square of 88 pixels sits right of the times, under the layer count, with the model
+  as the slicer sent it. It is fetched as soon as the print starts, so the full view
+  finds it ready, and kept while it is the same file. A print that does not appear in
+  the account's task list under the printer's file name has no picture, and the screen
+  is then as it was. One service does the work for every brand (`net/thumb.c`: fetch,
+  decode, shrink, hand the screen an image); a driver only says where the picture is,
+  so the other brands are a few lines each. Tried on a P2S in cloud mode; the other
+  brands are not written yet, and a Bambu in LAN mode (its file is on the printer) is
+  not either.
+- **The same picture for a Creality K2.** The K2's web server serves the slicer's small picture of
+  every file; the picture of the print in progress is the one named like its file. Written from
+  Tiger Studio Manager's protocol notes and **not tried on a K2**. A file whose name is longer
+  than the view's 47 characters has no picture.
+- **The same picture for a Klipper and a Snapmaker.** Both run Moonraker: the printing file is asked of
+  it, its metadata name the slicer's pictures, and the smallest one at least as big as the screen's
+  is fetched from the printer's own file server (plain HTTP, no TLS). Written from Tiger Studio
+  Manager's code and **not tried on a Klipper or a Snapmaker**.
+- **The same picture for an OctoPrint and a PrusaLink printer.** An OctoPrint has one only when a
+  thumbnail plugin made it (the file's record then names it); a PrusaLink names its pictures in the job's
+  file. Both are fetched with the same authentication as the driver's own requests (the API key, or
+  Digest for PrusaLink). Written from Tiger Studio Manager's code and **not tried on either**.
+
 ### Changed
 - **The French says « tu », like Tiger Studio Manager.** The screen, the
   installer site and the nine brand pages drop « vous » for Studio's own voice:
