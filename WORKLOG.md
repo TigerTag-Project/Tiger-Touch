@@ -13,3 +13,4 @@ reset to this header at each release.
 ### Added
 
 - The print's picture on the full view (`net/thumb.c`, `thumb_fetch` in `printer_driver.h`): one service fetches, reads the PNG line by line with the ROM's tinfl, shrinks it to an 88 px RGB565 square in PSRAM and the dashboard shows it right of the times; fetched when the print starts, kept for the same file, waits while the internal RAM is under 50 KB. The one source so far is a Bambu Lab in cloud mode (its task list, `limit=5`, the Tiger Touch's own client name).
+- The picture for a Creality K2 (`creality_thumb_fetch` in `drivers.c`): `http://<ip>/downloads/humbnail/<file without .gcode>.png` on its web server, port 80, the name taken from Tiger Studio Manager's protocol notes. Not tried on a K2.

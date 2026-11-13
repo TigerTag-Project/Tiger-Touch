@@ -27,6 +27,10 @@ they were written.
   so the other brands are a few lines each. Tried on a P2S in cloud mode; the other
   brands are not written yet, and a Bambu in LAN mode (its file is on the printer) is
   not either.
+- **The same picture for a Creality K2.** The K2's web server serves the slicer's small picture of
+  every file; the picture of the print in progress is the one named like its file. Written from
+  Tiger Studio Manager's protocol notes and **not tried on a K2**. A file whose name is longer
+  than the view's 47 characters has no picture.
 
 ### Changed
 - **The French says « tu », like Tiger Studio Manager.** The screen, the

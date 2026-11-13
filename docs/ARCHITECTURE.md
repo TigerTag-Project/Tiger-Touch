@@ -133,6 +133,11 @@ it is the same printer and file, so going back and forth costs nothing. It waits
 the internal RAM is under 50 KB, so the printers come first. Without a picture the
 screen is as it was.
 
+A Creality K2 serves the slicer's picture of each file on its web server (port 80,
+`/downloads/humbnail/<file>.png`, the firmware's own spelling); the print's picture is the one
+named like its file, so no request goes to the WebSocket. It is written from Tiger Studio
+Manager's notes and was not tried on a K2.
+
 For a Bambu Lab in cloud mode the source is the account's task list: the five latest
 tasks of the printer, the one whose title starts like the file name the printer
 reports, and its `cover`, a PNG on the maker's storage that needs no token. The

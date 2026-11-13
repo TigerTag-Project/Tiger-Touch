@@ -199,9 +199,10 @@ is, with an optional `thumb_fetch`.
 | Driver | Where the picture is | Status |
 |---|---|---|
 | Bambu Lab, cloud | the account's task list (`GET api.bambulab.<com or cn>/v1/user-service/my/tasks?deviceId=<serial>&limit=5`), the task whose title starts like the printer's file name, its `cover` PNG on the maker's storage, no token. The request carries Tiger Touch's own client name; the OrcaSlicer one gets 403 from Cloudflare | **Seen on a P2S in cloud mode** (2026-11-13): a 512 x 512 PNG of 15.6 KB, fetched in about 4.5 s, read in about 2.3 s |
+| Creality (K2) | its web server, `GET http://<ip>/downloads/humbnail/<file without .gcode>.png` (port 80; "humbnail" is the firmware's spelling; the name is Tiger Studio Manager's notes' rule, the file list would give it exactly) | **Written, not tried on a K2** (2026-11-13); a file name longer than 47 characters has no picture |
 | Bambu Lab, LAN | a `.3mf` in the printer's storage (FTPS), or its port 6000 | not written yet |
 | Klipper, Snapmaker | Moonraker, `/server/files/metadata` and the file's thumbnail | not written yet |
-| Creality, OctoPrint, PrusaLink, FlashForge, Elegoo, Anycubic | each one's own route | not written yet |
+| OctoPrint, PrusaLink, FlashForge, Elegoo, Anycubic | each one's own route | not written yet |
 
 A print that is not in the list under the printer's file name (one started from the
 printer, not from the slicer) has no picture.
