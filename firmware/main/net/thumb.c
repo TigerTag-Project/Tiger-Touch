@@ -16,6 +16,7 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "miniz.h"
+#include "rom/tjpgd.h"
 #include "src/libs/lodepng/lodepng.h"
 
 static const char *TAG = "thumb";
@@ -585,8 +586,164 @@ out:
     return ok;
 }
 
+/* ---- A JPEG ------------------------------------------------------------------
+ *
+ * The ROM's tjpgd (baseline JPEG) decodes it already scaled down by 2, 4 or 8, as far as the picture
+ * stays at least as big as ours: what is then held is at most about 90 KB of RGB, whatever the size
+ * of the file. It is averaged down to the tile from there, as the PNG is. A progressive JPEG is not
+ * supported by tjpgd: no picture. */
+
+#define JPG_POOL (16 * 1024) /* tjpgd's working memory: the tables, the MCU, the line buffers */
+
+typedef struct
+{
+    const uint8_t *p;
+    size_t pos, len;
+    uint8_t *rgb; /* the decoded picture, 3 bytes a pixel */
+    int sw, sh;   /* its size, after the scaling */
+} jpg_t;
+
+static UINT jpg_in(JDEC *jd, BYTE *buf, UINT n)
+{
+    jpg_t *j = jd->device;
+    const size_t left = j->len - j->pos;
+    if (n > left)
+    {
+        n = (UINT)left;
+    }
+    if (buf)
+    {
+        memcpy(buf, j->p + j->pos, n);
+    }
+    j->pos += n;
+    return n;
+}
+
+static UINT jpg_out(JDEC *jd, void *bitmap, JRECT *r)
+{
+    jpg_t *j = jd->device;
+    const uint8_t *src = bitmap;
+    const int w = r->right - r->left + 1;
+    const int cw = r->left + w > j->sw ? j->sw - r->left : w; /* the MCUs reach past the picture's edge */
+    for (int y = r->top; y <= r->bottom; y++, src += w * 3)
+    {
+        if (y < j->sh && cw > 0)
+        {
+            memcpy(j->rgb + ((size_t)y * (size_t)j->sw + r->left) * 3, src, (size_t)cw * 3);
+        }
+    }
+    return 1;
+}
+
+/* A box average of `rgb` (w x h) into a THUMB_SIZE square, the picture kept in proportion. */
+static uint16_t *scale_rgb(const uint8_t *rgb, int w, int h)
+{
+    uint16_t *px = heap_caps_malloc(THUMB_SIZE * THUMB_SIZE * sizeof *px, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!px)
+    {
+        return NULL;
+    }
+    const uint16_t bg = rgb565(BG_R, BG_G, BG_B);
+    for (int i = 0; i < THUMB_SIZE * THUMB_SIZE; i++)
+    {
+        px[i] = bg;
+    }
+    const float sc = (float)(w > h ? w : h) / THUMB_SIZE;
+    int dw = (int)((float)w / sc + 0.5f), dh = (int)((float)h / sc + 0.5f);
+    dw = dw < 1 ? 1 : dw > THUMB_SIZE ? THUMB_SIZE : dw;
+    dh = dh < 1 ? 1 : dh > THUMB_SIZE ? THUMB_SIZE : dh;
+    const int ox = (THUMB_SIZE - dw) / 2, oy = (THUMB_SIZE - dh) / 2;
+    for (int y = 0; y < dh; y++)
+    {
+        int sy0 = (int)((float)y * sc), sy1 = (int)((float)(y + 1) * sc);
+        sy1 = sy1 <= sy0 ? sy0 + 1 : sy1;
+        sy1 = sy1 > h ? h : sy1;
+        for (int x = 0; x < dw; x++)
+        {
+            int sx0 = (int)((float)x * sc), sx1 = (int)((float)(x + 1) * sc);
+            sx1 = sx1 <= sx0 ? sx0 + 1 : sx1;
+            sx1 = sx1 > w ? w : sx1;
+            uint32_t r = 0, g = 0, b = 0, n = 0;
+            for (int sy = sy0; sy < sy1; sy++)
+            {
+                const uint8_t *q = rgb + ((size_t)sy * (size_t)w + (size_t)sx0) * 3;
+                for (int sx = sx0; sx < sx1; sx++, q += 3)
+                {
+                    r += q[0];
+                    g += q[1];
+                    b += q[2];
+                    n++;
+                }
+            }
+            if (n)
+            {
+                px[(oy + y) * THUMB_SIZE + ox + x] = rgb565((int)(r / n), (int)(g / n), (int)(b / n));
+            }
+        }
+    }
+    return px;
+}
+
+static uint16_t *shrink_jpeg(const uint8_t *data, size_t len)
+{
+    const uint32_t caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+    void *pool = heap_caps_malloc(JPG_POOL, caps);
+    JDEC *jd = heap_caps_calloc(1, sizeof *jd, caps);
+    jpg_t j = {.p = data, .len = len};
+    uint16_t *px = NULL;
+    if (!pool || !jd)
+    {
+        goto out;
+    }
+    const int64_t t0 = esp_timer_get_time();
+    const JRESULT pr = jd_prepare(jd, jpg_in, pool, JPG_POOL, &j);
+    if (pr != JDR_OK)
+    {
+        ESP_LOGW(TAG, "JPEG not read (prepare %d: progressive or damaged?)", (int)pr);
+        goto out;
+    }
+    const int w = (int)jd->width, h = (int)jd->height;
+    if (w <= 0 || h <= 0 || w > MAX_SIDE || h > MAX_SIDE)
+    {
+        ESP_LOGW(TAG, "JPEG %dx%d not decoded", w, h);
+        goto out;
+    }
+    int s = 0; /* the most the decoder may shrink it and leave it at least as big as the tile */
+    while (s < 3 && ((w > h ? w : h) >> (s + 1)) >= THUMB_SIZE)
+    {
+        s++;
+    }
+    /* tjpgd cuts a partial MCU on the shifted size, so the picture is w >> s wide: rounding up would leave a
+     * column the decoder never writes (seen as a dark edge on a 550 x 368 picture at 1/4). */
+    j.sw = (w >> s) > 0 ? (w >> s) : 1;
+    j.sh = (h >> s) > 0 ? (h >> s) : 1;
+    j.rgb = heap_caps_calloc((size_t)j.sw * (size_t)j.sh, 3, caps);
+    if (!j.rgb)
+    {
+        goto out;
+    }
+    const JRESULT dr = jd_decomp(jd, jpg_out, (BYTE)s);
+    if (dr != JDR_OK)
+    {
+        ESP_LOGW(TAG, "JPEG decode error %d", (int)dr);
+        goto out;
+    }
+    px = scale_rgb(j.rgb, j.sw, j.sh);
+    ESP_LOGI(TAG, "%dx%d JPEG of %u bytes read in %d ms (scaled 1/%d first)", w, h, (unsigned)len,
+             (int)((esp_timer_get_time() - t0) / 1000), 1 << s);
+out:
+    heap_caps_free(j.rgb);
+    heap_caps_free(jd);
+    heap_caps_free(pool);
+    return px;
+}
+
 static uint16_t *shrink(const uint8_t *data, size_t len)
 {
+    if (len >= 3 && data[0] == 0xFF && data[1] == 0xD8)
+    {
+        return shrink_jpeg(data, len);
+    }
     bool fallback = false;
     uint16_t *px = shrink_lines(data, len, &fallback);
     if (!px && fallback)

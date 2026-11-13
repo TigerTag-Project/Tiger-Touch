@@ -138,6 +138,13 @@ A Creality K2 serves the slicer's picture of each file on its web server (port 8
 named like its file, so no request goes to the WebSocket. It is written from Tiger Studio
 Manager's notes and was not tried on a K2.
 
+A FlashForge gives the address of its picture in the answer the driver already asks every two seconds
+(`POST /detail`, `printFileThumbUrl`, a JPEG), so its source is one request more
+(`drivers/flashforge_thumb.c`). A JPEG is read with the ROM's tjpgd, which shrinks it by 2, 4 or 8 while
+it decodes, as far as it stays at least as big as the screen's picture; at most about 90 KB of RGB is held,
+then averaged down to the tile as a PNG is. tjpgd takes baseline JPEGs only: a progressive one has no
+picture. Written from Tiger Studio Manager's notes, not tried on a machine.
+
 A Klipper or a Snapmaker is asked through Moonraker (`drivers/moonraker_thumb.c`, one function for
 both): the file that is printing (`print_stats.filename`, with its folder: the view's name has
 lost both the folder and the extension), its metadata, and the smallest listed picture that is at

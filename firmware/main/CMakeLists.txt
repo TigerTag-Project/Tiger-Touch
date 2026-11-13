@@ -17,6 +17,7 @@ idf_component_register(
         "drivers/k2_client.c"
         "drivers/drv_bambu.c"
         "drivers/moonraker_thumb.c"
+        "drivers/flashforge_thumb.c"
         "drivers/octoprint_thumb.c"
         "drivers/prusa_thumb.c"
         "drivers/drv_prusa.c"

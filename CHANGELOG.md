@@ -39,6 +39,10 @@ they were written.
   thumbnail plugin made it (the file's record then names it); a PrusaLink names its pictures in the job's
   file. Both are fetched with the same authentication as the driver's own requests (the API key, or
   Digest for PrusaLink). Written from Tiger Studio Manager's code and **not tried on either**.
+- **The same picture for a FlashForge, and JPEG pictures.** A FlashForge names the slicer's picture, a
+  JPEG, in the answer the driver already asks every two seconds. The picture service now reads a JPEG as
+  well as a PNG, with the ROM's decoder, which shrinks it while it decodes. Written from Tiger Studio
+  Manager's notes and **not tried on a FlashForge**.
 
 ### Changed
 - **The French says « tu », like Tiger Studio Manager.** The screen, the

@@ -204,7 +204,8 @@ is, with an optional `thumb_fetch`.
 | Klipper, Snapmaker | Moonraker on the printer's port (7125 unless `ip` says otherwise), plain HTTP, `X-Api-Key` when the account has one: `GET /printer/objects/query?print_stats=filename` for the printing file with its folder, `GET /server/files/metadata?filename=` for its `thumbnails` (width, height, `relative_path`), then `GET /server/files/gcodes/<folder>/<relative_path>`; the smallest picture at least 88 px wide, else the largest | **Written, not tried on a machine** (2026-11-13), from Tiger Studio Manager's code |
 | OctoPrint | its REST API on the printer's address, `X-Api-Key`: `GET /api/job` for the printing file (`job.file.path`, local origin only), `GET /api/files/local/<path>` for its `thumbnail` (set only when a thumbnail plugin made one), then `GET` of that address | **Written, not tried on a machine** (2026-11-13), from Tiger Studio Manager's code; no plugin, no picture |
 | PrusaLink | `GET /api/v1/job`: `file.display_name` and `file.refs.thumbnail` (else `icon`), then `GET` of that path; Digest with the account's user and password, or `X-Api-Key` when it holds a legacy key (as the driver's own requests) | **Written, not tried on a machine** (2026-11-13), from Tiger Studio Manager's code |
-| FlashForge, Elegoo, Anycubic | each one's own route | not written yet |
+| FlashForge | the answer of `POST :8898/detail` (the driver's own request): `printFileName` must match, `printFileThumbUrl` is a full address of the printer's file server, a JPEG in Tiger Studio Manager's notes; only its path is used, on the account's address, with no authentication | **Written, not tried on a machine** (2026-11-13), and the JPEG reader (the ROM's tjpgd) has not been tried on any picture yet |
+| Elegoo, Anycubic | each one's own route | not written yet |
 
 A print that is not in the list under the printer's file name (one started from the
 printer, not from the slicer) has no picture.
