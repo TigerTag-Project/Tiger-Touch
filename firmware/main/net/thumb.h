@@ -49,3 +49,7 @@ void thumb_forget(void);
  * Bambu's edge reads: it refuses the borrowed OrcaSlicer name (403), and asks
  * third parties to send their own. The caller frees `*out` with heap_caps_free. */
 int thumb_http_get(const char *url, const char *bearer, bool bbl_identity, size_t cap, uint8_t **out, size_t *len);
+
+/* The same for a printer on the local network that wants an `X-Api-Key` (OctoPrint, Moonraker) when
+ * `api_key` is not empty. */
+int thumb_http_get_key(const char *url, const char *api_key, size_t cap, uint8_t **out, size_t *len);

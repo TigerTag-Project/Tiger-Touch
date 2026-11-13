@@ -138,6 +138,12 @@ A Creality K2 serves the slicer's picture of each file on its web server (port 8
 named like its file, so no request goes to the WebSocket. It is written from Tiger Studio
 Manager's notes and was not tried on a K2.
 
+A Klipper or a Snapmaker is asked through Moonraker (`drivers/moonraker_thumb.c`, one function for
+both): the file that is printing (`print_stats.filename`, with its folder: the view's name has
+lost both the folder and the extension), its metadata, and the smallest listed picture that is at
+least as big as the screen's, from the printer's file server. Plain HTTP on the local network, so
+almost nothing in internal RAM. Written from Tiger Studio Manager's code, not tried on a machine.
+
 For a Bambu Lab in cloud mode the source is the account's task list: the five latest
 tasks of the printer, the one whose title starts like the file name the printer
 reports, and its `cover`, a PNG on the maker's storage that needs no token. The

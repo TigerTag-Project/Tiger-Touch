@@ -107,7 +107,8 @@ static esp_err_t on_data(esp_http_client_event_t *e)
     return ESP_OK;
 }
 
-int thumb_http_get(const char *url, const char *bearer, bool bbl_identity, size_t cap, uint8_t **out, size_t *len)
+static int http_get(const char *url, const char *bearer, const char *api_key, bool bbl_identity, size_t cap, uint8_t **out,
+                    size_t *len)
 {
     *out = NULL;
     *len = 0;
@@ -129,6 +130,10 @@ int thumb_http_get(const char *url, const char *bearer, bool bbl_identity, size_
     char ua[48]; /* "tiger-touch/" and a version of up to 31 characters */
     snprintf(ua, sizeof ua, "tiger-touch/%s", esp_app_get_description()->version);
     esp_http_client_set_header(c, "User-Agent", ua);
+    if (api_key && api_key[0])
+    {
+        esp_http_client_set_header(c, "X-Api-Key", api_key);
+    }
     if (bbl_identity)
     {
         esp_http_client_set_header(c, "X-BBL-Client-Name", "tiger-touch");
@@ -171,6 +176,16 @@ int thumb_http_get(const char *url, const char *bearer, bool bbl_identity, size_
     *out = a.buf;
     *len = a.len;
     return status;
+}
+
+int thumb_http_get(const char *url, const char *bearer, bool bbl_identity, size_t cap, uint8_t **out, size_t *len)
+{
+    return http_get(url, bearer, NULL, bbl_identity, cap, out, len);
+}
+
+int thumb_http_get_key(const char *url, const char *api_key, size_t cap, uint8_t **out, size_t *len)
+{
+    return http_get(url, NULL, api_key, false, cap, out, len);
 }
 
 /* ---- Decode and shrink -------------------------------------------------- */

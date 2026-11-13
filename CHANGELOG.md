@@ -31,6 +31,10 @@ they were written.
   every file; the picture of the print in progress is the one named like its file. Written from
   Tiger Studio Manager's protocol notes and **not tried on a K2**. A file whose name is longer
   than the view's 47 characters has no picture.
+- **The same picture for a Klipper and a Snapmaker.** Both run Moonraker: the printing file is asked of
+  it, its metadata name the slicer's pictures, and the smallest one at least as big as the screen's
+  is fetched from the printer's own file server (plain HTTP, no TLS). Written from Tiger Studio
+  Manager's code and **not tried on a Klipper or a Snapmaker**.
 
 ### Changed
 - **The French says « tu », like Tiger Studio Manager.** The screen, the
