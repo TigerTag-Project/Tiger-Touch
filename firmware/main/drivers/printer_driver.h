@@ -3,6 +3,7 @@
 #include <stdbool.h>
 
 #include "cloud.h"
+#include "thumb.h"
 #include "ui_dashboard.h"
 
 /* One driver per way of reaching a printer. A driver turns a printer of the
@@ -31,6 +32,10 @@ typedef struct
      * command. true when the command was handed to the connection; the printer's
      * own report says whether it was obeyed. */
     bool (*control)(void *ctx, pv_control_t cmd);
+    /* Optional: where the picture of the print in progress is (thumb.h). NULL when this
+     * connection has none. It gets a copy of the account's printer, not the driver's
+     * context: it runs on the thumbnail service's task, long after a switch of printer. */
+    thumb_fetch_fn thumb_fetch;
 } printer_driver_t;
 
 /* NULL when no driver can reach this printer. */

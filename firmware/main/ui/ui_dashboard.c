@@ -9,6 +9,7 @@
 
 #include "brand_logos.h"
 #include "pictos.h"
+#include "thumb.h"
 #include "ui_setup.h"
 #include "ui_job.h"
 #include "ui_theme.h"
@@ -37,6 +38,12 @@ static uint32_t s_tone; /* the colour given to the state's word and the line, 0 
 static lv_obj_t *s_pct;
 static lv_obj_t *s_layer;
 static lv_obj_t *s_file;
+static lv_obj_t *s_thumb_box; /* the print's picture: a tile, empty while it loads */
+static lv_obj_t *s_thumb_img;
+static uint32_t s_thumb_ver;  /* the picture the image shows (thumb_get's version) */
+#define THUMB_BOX (THUMB_SIZE + 2) /* the tile's 1 px border around the picture */
+#define THUMB_X (500 - THUMB_BOX)  /* the card's right inner edge */
+#define THUMB_Y 191
 static lv_obj_t *s_left;
 static lv_obj_t *s_end;
 static lv_obj_t *s_nozzle;
@@ -150,6 +157,8 @@ static void layout_temps(int n)
 void ui_dashboard_invalidate(void)
 {
     s_ready = false;
+    s_thumb_box = s_thumb_img = NULL;
+    thumb_forget(); /* the picture's memory goes with the screen */
     ui_wifi_forget_persistent(); /* its wave and account icon go with the screen */
     s_chip_dot = s_chip_name = s_notice = NULL;
 }
@@ -269,6 +278,24 @@ void ui_dashboard_create(lv_obj_t *parent)
     s_file = mk_label(card, &font_ui_20, C_TEXT, 20, 210, "--");
     lv_obj_set_width(s_file, 480);
     lv_label_set_long_mode(s_file, LV_LABEL_LONG_DOT);
+    /* Right of the times, under the layer count; shown only while there is a picture to wait for or to show. */
+    s_thumb_box = lv_obj_create(card);
+    lv_obj_set_pos(s_thumb_box, THUMB_X, THUMB_Y);
+    lv_obj_set_size(s_thumb_box, THUMB_BOX, THUMB_BOX);
+    lv_obj_set_style_bg_color(s_thumb_box, C_TILE, 0);
+    lv_obj_set_style_bg_opa(s_thumb_box, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(s_thumb_box, C_LINE, 0);
+    lv_obj_set_style_border_width(s_thumb_box, 1, 0);
+    lv_obj_set_style_radius(s_thumb_box, 8, 0);
+    lv_obj_set_style_pad_all(s_thumb_box, 0, 0);
+    lv_obj_set_scrollable(s_thumb_box, false);
+    lv_obj_set_clickable(s_thumb_box, false);
+    s_thumb_img = lv_image_create(s_thumb_box);
+    lv_obj_set_pos(s_thumb_img, 0, 0);
+    lv_obj_set_clickable(s_thumb_img, false);
+    lv_obj_set_hidden(s_thumb_img, true);
+    lv_obj_set_hidden(s_thumb_box, true);
+    s_thumb_ver = 0;
 
     lv_obj_set_pos(picto_create(card, PICTO_CLOCK, LBL_ICO, C_MUTED), 20, 241);
     mk_label(card, &font_ui_14, C_MUTED, 20 + LBL_ICO + LBL_GAP, 240, tr(S_TIME_LEFT));
@@ -525,6 +552,20 @@ void ui_dashboard_update(const printer_view_t *v)
     snprintf(buf, sizeof buf, tr(S_LAYER), v->layer, v->total_layer);
     lv_label_set_text(s_layer, live && v->total_layer > 0 ? buf : ""); /* nothing when the printer does not count them */
     lv_label_set_text(s_file, live && v->file[0] ? v->file : "--");
+    /* The print's picture. A state other than READY hides the image in the same breath that
+     * thumb_get may free it, under the one lock. */
+    const lv_image_dsc_t *timg = NULL;
+    uint32_t tver = 0;
+    const thumb_state_t tst = live ? thumb_get(&timg, &tver) : THUMB_NONE;
+    const bool tshow = tst == THUMB_READY && timg;
+    if (tshow && tver != s_thumb_ver)
+    {
+        lv_image_set_src(s_thumb_img, timg);
+        s_thumb_ver = tver;
+    }
+    lv_obj_set_hidden(s_thumb_img, !tshow);
+    lv_obj_set_hidden(s_thumb_box, tst == THUMB_NONE);
+    lv_obj_set_width(s_file, tst == THUMB_NONE ? 480 : THUMB_X - 28); /* the name stops short of the picture */
     lv_label_set_text(s_notice, v->notice);
     lv_obj_set_style_text_color(s_notice, v->notice_error ? C_RED : C_MUTED, 0);
 
