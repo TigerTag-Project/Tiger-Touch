@@ -29,6 +29,7 @@
 #include "freertos/task.h"
 #include "http_lite.h"
 #include "i18n.h"
+#include "prusa_thumb.h"
 #include "printer_driver.h"
 
 static const char *TAG = "prusa";
@@ -302,4 +303,5 @@ const printer_driver_t DRIVER_PRUSA = {
     .stop = prusa_stop,
     .snapshot = prusa_snapshot,
     .control = prusa_control,
+    .thumb_fetch = prusa_thumb_fetch,
 };

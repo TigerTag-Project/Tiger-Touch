@@ -31,6 +31,7 @@
 #include "freertos/task.h"
 #include "http_lite.h"
 #include "i18n.h"
+#include "moonraker_thumb.h"
 #include "printer_driver.h"
 
 static const char *TAG = "klipper";
@@ -689,4 +690,5 @@ const printer_driver_t DRIVER_KLIPPER = {
     .stop = klip_stop,
     .snapshot = klip_snapshot,
     .control = klip_control,
+    .thumb_fetch = moonraker_thumb_fetch,
 };
