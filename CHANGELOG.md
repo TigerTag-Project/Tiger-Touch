@@ -47,6 +47,10 @@ they were written.
   plate's picture, a small PNG, next to the gcode file its report names (not the .3mf, a ZIP of megabytes
   that Tiger Studio Manager downloads whole). Written after ha-bambulab's client of that service and
   **not tried on any printer**: whether a model answers on that port is not known.
+- **The same picture for an Anycubic in cloud mode.** The account's project list names, for the print
+  in progress, a signed address of its picture, asked as Tiger Studio Manager asks it, with the same
+  signature as the cloud orders. A finished print has no picture after a restart. Written from Tiger Studio
+  Manager's code and **not tried on an Anycubic**.
 
 ### Changed
 - **The French says « tu », like Tiger Studio Manager.** The screen, the

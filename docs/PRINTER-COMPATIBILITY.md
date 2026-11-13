@@ -205,7 +205,9 @@ is, with an optional `thumb_fetch`.
 | OctoPrint | its REST API on the printer's address, `X-Api-Key`: `GET /api/job` for the printing file (`job.file.path`, local origin only), `GET /api/files/local/<path>` for its `thumbnail` (set only when a thumbnail plugin made one), then `GET` of that address | **Written, not tried on a machine** (2026-11-13), from Tiger Studio Manager's code; no plugin, no picture |
 | PrusaLink | `GET /api/v1/job`: `file.display_name` and `file.refs.thumbnail` (else `icon`), then `GET` of that path; Digest with the account's user and password, or `X-Api-Key` when it holds a legacy key (as the driver's own requests) | **Written, not tried on a machine** (2026-11-13), from Tiger Studio Manager's code |
 | FlashForge | the answer of `POST :8898/detail` (the driver's own request): `printFileName` must match, `printFileThumbUrl` is a full address of the printer's file server, a JPEG in Tiger Studio Manager's notes; only its path is used, on the account's address, with no authentication | **Written, not tried on a machine** (2026-11-13), and the JPEG reader (the ROM's tjpgd) has not been tried on any picture yet |
-| Elegoo, Anycubic | each one's own route | not written yet |
+| Anycubic, cloud | `GET .../work/project/getProjects?page=1&limit=5`, signed as the cloud orders are (md5 of the app id, time, version, secret, a nonce and the app id, with the workbench token), the project of this printer (`printer_id`, its numeric account id) with `print_status` 1, then its `img`, a signed address fetched with no header of ours | **Written, not tried on an Anycubic** (2026-11-13), from Tiger Studio Manager's code; only the print in progress has a picture |
+| Anycubic, LAN | none found | not written |
+| Elegoo | CC2: method 1045 over MQTT, the picture in the answer as base64 (needs the picture service to be handed it by the driver); CC1 (SDCP): no route known | not written yet |
 
 A print that is not in the list under the printer's file name (one started from the
 printer, not from the slicer) has no picture.

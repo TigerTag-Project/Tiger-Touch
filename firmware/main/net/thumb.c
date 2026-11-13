@@ -121,7 +121,7 @@ static esp_err_t on_data(esp_http_client_event_t *e)
 }
 
 static int http_get(const char *url, const char *bearer, const char *api_key, const char *user, const char *pass,
-                    bool bbl_identity, size_t cap, uint8_t **out, size_t *len)
+                    bool bbl_identity, const thumb_hdr_t *hdrs, int nhdr, size_t cap, uint8_t **out, size_t *len)
 {
     *out = NULL;
     *len = 0;
@@ -164,6 +164,10 @@ static int http_get(const char *url, const char *bearer, const char *api_key, co
         esp_http_client_set_header(c, "X-BBL-Executable-info", "{}");
         esp_http_client_set_header(c, "X-BBL-Agent-OS-Type", "linux");
     }
+    for (int i = 0; i < nhdr; i++)
+    {
+        esp_http_client_set_header(c, hdrs[i].name, hdrs[i].value);
+    }
     char *auth = NULL;
     if (bearer && bearer[0])
     {
@@ -199,18 +203,23 @@ static int http_get(const char *url, const char *bearer, const char *api_key, co
 
 int thumb_http_get(const char *url, const char *bearer, bool bbl_identity, size_t cap, uint8_t **out, size_t *len)
 {
-    return http_get(url, bearer, NULL, NULL, NULL, bbl_identity, cap, out, len);
+    return http_get(url, bearer, NULL, NULL, NULL, bbl_identity, NULL, 0, cap, out, len);
 }
 
 int thumb_http_get_key(const char *url, const char *api_key, size_t cap, uint8_t **out, size_t *len)
 {
-    return http_get(url, NULL, api_key, NULL, NULL, false, cap, out, len);
+    return http_get(url, NULL, api_key, NULL, NULL, false, NULL, 0, cap, out, len);
+}
+
+int thumb_http_get_headers(const char *url, const thumb_hdr_t *hdrs, int nhdr, size_t cap, uint8_t **out, size_t *len)
+{
+    return http_get(url, NULL, NULL, NULL, NULL, false, hdrs, nhdr, cap, out, len);
 }
 
 int thumb_http_get_auth(const char *url, const char *user, const char *pass, const char *api_key, size_t cap, uint8_t **out,
                         size_t *len)
 {
-    return http_get(url, NULL, api_key, user, pass, false, cap, out, len);
+    return http_get(url, NULL, api_key, user, pass, false, NULL, 0, cap, out, len);
 }
 
 size_t thumb_url_append(char *out, size_t n, size_t cap, const char *s, bool keep_slash)

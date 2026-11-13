@@ -59,6 +59,14 @@ int thumb_http_get_key(const char *url, const char *api_key, size_t cap, uint8_t
 int thumb_http_get_auth(const char *url, const char *user, const char *pass, const char *api_key, size_t cap, uint8_t **out,
                         size_t *len);
 
+/* The same with headers of the caller's (a maker's signed API): `nhdr` name/value pairs. */
+typedef struct
+{
+    const char *name;
+    const char *value;
+} thumb_hdr_t;
+int thumb_http_get_headers(const char *url, const thumb_hdr_t *hdrs, int nhdr, size_t cap, uint8_t **out, size_t *len);
+
 /* Appends `s` percent-encoded to `out` at `n` (everything but the unreserved characters, and the '/' when
  * `keep_slash`), within `cap` bytes; the new length. For the paths of the drivers' picture requests. */
 size_t thumb_url_append(char *out, size_t n, size_t cap, const char *s, bool keep_slash);

@@ -138,6 +138,11 @@ A Creality K2 serves the slicer's picture of each file on its web server (port 8
 named like its file, so no request goes to the WebSocket. It is written from Tiger Studio
 Manager's notes and was not tried on a K2.
 
+An Anycubic in cloud mode is asked through the account's project list (`anycubic_thumb_fetch` in `drv_anycubic.c`),
+signed as its cloud orders are: the project of the printer that is running names a signed address of its
+picture, which is fetched with no header of ours. `thumb_http_get_headers` carries the signed headers. Only
+the print in progress has one. Written from Tiger Studio Manager's code, not tried on an Anycubic.
+
 A Bambu Lab in LAN mode gives its picture through the printer's own file service on port 6000
 (`drivers/bambu_lan_thumb.c`): TLS with the printer's own certificate, login, a fixed JSON setup, then a
 download of the plate's PNG, whose folder is the one of the `gcode_file` the report names (kept by
